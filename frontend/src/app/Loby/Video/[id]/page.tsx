@@ -8,9 +8,9 @@ import Peer from "@/utility/Peer";
 import { useRouter } from "next/navigation";
 import { PhoneCall } from "lucide-react";
 import { flushSync } from "react-dom";
+import Chat from "@/component/Chat";
 export default function Homepage() {
   const { socket, isConnected, socketId } = useSocket();
-  const [input, setInput] = useState<string>("");
   const [myStream, setMyStream] = useState<MediaStream | null>(null);
   const param = useParams();
   const roomId = param.id as string;
@@ -34,22 +34,12 @@ export default function Homepage() {
   };
   const router = useRouter();
   const mainUserId = useUserid();
-  const [isChatOpen, setIsChatOpen] = useState(false);
   const userIdREF = useRef<string>(mainUserId);
   const streamRef = useRef<MediaStream | null>(null);
-  const chatEndRef = useRef<HTMLDivElement | null>(null);
 
-  type ChatMessage = {
-    id: string;
-    senderid: string;
-    message: string;
-    timestamp: string;
-  };
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
 
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chatMessages]);
+
+
 
   useEffect(() => {
     if (mainUserId) {
@@ -131,6 +121,8 @@ export default function Homepage() {
     if(!requesterId || !roomId){
       return;
     }
+    console.log("yes i click it");
+    console.log("Accepting join request from:", requesterId, "for room:", roomId);
     socket?.emit("join:request-accept", {
       requesterId:requesterId,
       roomId: roomId,
@@ -222,6 +214,11 @@ export default function Homepage() {
   useEffect(() => {
     const handleStartCalling = async (data: handleStartCallingDTO) => {
       // console.log("📞 Starting call with data:", data);
+      const justLeft = localStorage.getItem("just:leave");
+      if(justLeft === "true"){
+        await new Promise((resolve)=> setTimeout(resolve, 2000));
+        localStorage.removeItem("just:leave");
+      }
       let { ownSocketId, roomId, ownUserId, users } = data;
       await Promise.all(
         users.map(async ({ userId, RemotesocketId }) => {
@@ -422,41 +419,8 @@ useEffect(() => {
     };
   }, [socket]);
 
-  useEffect(() => {
-    socket?.on("chat:started", ({ message, senderid }) => {
-      const newMsg: ChatMessage = {
-        id: crypto.randomUUID(),
-        senderid,
-        message,
-        timestamp: new Date().toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-      };
-      setChatMessages((prev) => [...prev, newMsg]);
-    });
-
-    return () => {
-      socket?.off("chat:started");
-    };
-  }, [socket]);
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setInput(e.target.value);
-  };
-
-  const handelSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!input || typeof input !== "string" || input.trim() === "") {
-      // console.error('Invalid input:', input);
-      return;
-    }
-
-    const message = input.trim();
-    socket?.emit("start-chat", { roomId, message, OwnuserId: userIdREF.current });
-
-    setInput("");
-  };
+ 
+ 
 
 
   useEffect(()=>{
@@ -473,8 +437,7 @@ useEffect(() => {
     flushSync(()=>{
     setMyStream(null);
     setRemoteStreams(new Map());
-    setChatMessages([]);
-      setIsChatOpen(false);
+   
     setShowJoinPermission(false);
     setIspending([]);
     })
@@ -517,13 +480,11 @@ useEffect(() => {
     flushSync(()=>{
       setMyStream(null);
     setRemoteStreams(new Map());
-    setIsChatOpen(false);
-    setChatMessages([]);
     setShowJoinPermission(false);
     setIspending([]);
     setRoomStatus(false);
     })
-    await new Promise((resolve)=> setTimeout(resolve, 100));
+    await new Promise((resolve)=> setTimeout(resolve, 1000));
     localStorage.removeItem("webrtc:start");
     router.replace("/Loby");
   }
@@ -544,6 +505,13 @@ useEffect(() => {
       const existingPeer = PeerService.getPeer(data.leaver);
     if (existingPeer) {
       console.log("🧹 Cleaning up peer for left user:", data.leaver);
+       const remoteStream = remoteStreams.get(data.leaver);
+      if (remoteStream) {
+        remoteStream.getTracks().forEach(track => {
+          track.stop();
+          console.log(`🛑 Stopped remote track for ${data.leaver}:`, track.kind);
+        });
+      }
       PeerService.removePeer(data.leaver);
     }
 
@@ -555,7 +523,7 @@ useEffect(() => {
       socket?.off("user:left");
       setShowNotification(null);
     }
-  },[socket]);
+  },[socket, remoteStreams]);
   return (
     <>
       {/* Optional chat input (currently commented out) */}
@@ -649,76 +617,7 @@ useEffect(() => {
 </button>
 </div>
 
-        {!isChatOpen && (
-          <div className="fixed bottom-4 right-4 z-50">
-            <button
-              onClick={() => setIsChatOpen((prev) => !prev)}
-              className="bg-blue-600 hover:bg-blue-700 text-white rounded-full w-12 h-12 flex items-center justify-center shadow-lg"
-            >
-              💬
-            </button>
-          </div>
-        )}
-        
-
-        {isChatOpen && (
-          <div className="fixed bottom-16 right-4 z-50 w-80 bg-gray-800 rounded-lg shadow-xl flex flex-col h-[80vh]">
-            <div className="flex items-center justify-between p-3 bg-gray-700 rounded-t-lg">
-              <h3 className="text-white font-semibold">Meeting Chat</h3>
-              <button
-                onClick={() => setIsChatOpen(false)}
-                className="text-gray-300 hover:text-white"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-3 space-y-3">
-              {chatMessages.map(({ id, senderid, message, timestamp }) => {
-                const isMine = senderid === userIdREF.current;
-                return (
-                  <div
-                    key={id}
-                    className={`flex ${
-                      isMine ? "justify-end" : "justify-start"
-                    }`}
-                  >
-                    <div
-                      className={`max-w-[70%] p-3 rounded-lg ${
-                        isMine
-                          ? "bg-blue-600 text-white"
-                          : "bg-gray-600 text-white"
-                      }`}
-                    >
-                      <p className="text-sm">{message}</p>
-                      <p className="text-xs opacity-70 mt-1">{timestamp}</p>
-                    </div>
-                  </div>
-                );
-              })}
-              <div ref={chatEndRef} />
-            </div>
-            <form
-              onSubmit={handelSubmit}
-              className="p-3 border-t border-gray-600"
-            >
-              <div className="flex gap-2">
-                <input
-                  value={input}
-                  onChange={handleInputChange}
-                  type="text"
-                  placeholder="Type a message..."
-                  className="flex-1 p-2 bg-gray-700 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <button
-                  type="submit"
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
-                >
-                  Send
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
+<Chat socket={socket} roomId={roomId}  userid={mainUserId as string}/>
       </div>
     </>
   );

@@ -32,18 +32,35 @@ class PeerService {
   removePeer(remoteUserId: string) {
     const peer = this.peers.get(remoteUserId);
     if (peer) {
-      peer.close();
+      peer.getSenders().forEach((sender)=>{
+        try{
+          peer.removeTrack(sender);
+        }catch(err){
+          console.warn(`Failed to remove track from ${remoteUserId}:`, err);
+        }
+      })
+     
        peer.onicecandidate = null;
     peer.ontrack = null;
     peer.onsignalingstatechange = null;
     peer.onconnectionstatechange = null;
-      this.peers.delete(remoteUserId);
+     peer.close();
+    this.peers.delete(remoteUserId);
     }
   }
 
   addTrack(peer: RTCPeerConnection, stream: MediaStream) {
+    if (peer.signalingState === 'closed') {
+    console.error('Cannot add track: Peer connection is closed');
+    return;
+  }
     stream.getTracks().forEach((track) => {
+      const existingSender = peer.getSenders().find(sender => 
+      sender.track === track
+    );
+    if(!existingSender){
       peer.addTrack(track, stream);
+    }
     });
   }
   async getOffer(remoteUserId: string): Promise<RTCSessionDescriptionInit> {

@@ -104,15 +104,22 @@ export default function Register({ handleShow }: { handleShow: () => void }) {
   </div>
 )}
       {errors && (
-        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 w-[90%] sm:w-[80%] md:w-[60%] lg:w-[40%] bg-red-500 text-white text-sm font-medium px-4 py-3 rounded-lg shadow-md">
-          {errors.both && <p>{errors.both}</p>}
-          {errors.email && <p>{errors.email}</p>}
-          {errors.password && <p>{errors.password}</p>}
-        </div>
-      )}
+  <div className="fixed top-5 left-1/2 transform -translate-x-1/2 z-50 w-[90%] sm:w-[80%] md:w-[60%] lg:w-[40%] px-6 py-4 rounded-xl shadow-lg border border-red-300/30 bg-red-100/50 text-red-800 dark:bg-red-900/30 dark:border-red-600/40 dark:text-red-200 backdrop-blur-md animate-in slide-in-from-top fade-in duration-300">
+    <div className="flex items-start gap-3">
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mt-[2px] text-red-500 dark:text-red-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M12 2a10 10 0 1010 10A10 10 0 0012 2z" />
+      </svg>
+      <div className="text-left text-sm font-medium space-y-1">
+        {errors.both && <p>{errors.both}</p>}
+        {errors.email && <p>{errors.email}</p>}
+        {errors.password && <p>{errors.password}</p>}
+      </div>
+    </div>
+  </div>
+)}
 
-      <div className="flex inset-0 absolute items-center justify-center bg-gradient-to-br from-white to-zinc-100 dark:from-zinc-900 dark:to-zinc-800 backdrop-blur-md">
-        <div className="relative w-[90%] max-w-5xl  min-h-[500px] max-h-[85vh] md:h-[77vh] p-6 md:p-10 rounded-[2rem] bg-[#e0e0e0] dark:bg-zinc-800 shadow-[inset_8px_8px_16px_#bebebe,inset_-8px_-8px_16px_#ffffff] dark:shadow-[inset_8px_8px_16px_#1c1c1c,inset_-8px_-8px_16px_#2c2c2c] flex flex-col md:flex-row items-center justify-between transition-all duration-300">
+      <div className="flex inset-0 absolute items-center justify-center bg-gradient-to-br from-white/10 to-zinc-100 dark:from-zinc-900 dark:to-zinc-800 backdrop-blur-md">
+       <div className="relative w-[90%] max-w-5xl min-h-[32rem] max-h-[95vh] overflow-auto p-6 md:p-10 rounded-2xl bg-white/30 dark:bg-zinc-900/60 backdrop-blur-xl border border-white/20 dark:border-zinc-700 shadow-lg flex flex-col md:flex-row items-center justify-between transition-all duration-300">
           <button
             className=" absolute top-5 text-zinc-950 right-7 cursor-pointer"
             onClick={handleShow}

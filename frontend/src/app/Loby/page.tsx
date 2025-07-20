@@ -138,6 +138,7 @@ export default function Home() {
     socket?.on(
       "join:approved",
       ({ roomId, ownUserId }: { roomId: string; ownUserId: string }) => {
+        console.log("Join approved for room:", roomId, "ownUserId:", ownUserId);
         socket.emit("join:room", { roomId, ownUserId });
       }
     );

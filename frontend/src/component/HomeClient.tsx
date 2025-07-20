@@ -83,7 +83,7 @@ export default function HomeClient({
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-200 dark:from-zinc-900 dark:to-zinc-800">
       {/* Navigation */}
       <motion.nav
-        className="flex justify-between items-center bg-white/80 dark:bg-zinc-800/80 backdrop-blur-md top-4 left-4 right-4 px-4 sm:px-6 py-3 rounded-full shadow-lg fixed"
+        className="flex  justify-between items-center bg-white/80 dark:bg-zinc-800/80 backdrop-blur-md top-4 left-4 right-4 px-4 sm:px-6 py-3 rounded-full shadow-lg fixed"
         initial={{ y: -100 }}
         animate={{ y: 0 }}
         transition={{ duration: 0.5, ease: "easeOut" }}
@@ -102,7 +102,7 @@ export default function HomeClient({
               >
                 <button
                   onClick={handleLogin}
-                  className="hover:bg-gradient-to-tl cursor-pointer from-gray-200 via-black/10 to-gray-400 px-5 rounded-4xl py-2 font-medium dark:bg-blue-400"
+                  className="cursor-pointer hover:bg-gradient-to-tl from-blue-500 to-blue-100 px-5 rounded-xl py-2 font-medium dark:bg-blue-400"
                 >
                   Login
                 </button>
@@ -117,7 +117,10 @@ export default function HomeClient({
               </motion.div>
               <button
                 className="block sm:hidden mb-2.5"
-                onClick={() => setShow({ hamburger: !show.hamburger })}
+                onClick={() => {
+                  console.log("clicked hamburger");
+                  setShow({ hamburger: !show.hamburger })}
+                }
               >
                 {""}
                 <AlignRight />
@@ -240,7 +243,7 @@ export default function HomeClient({
             </section>
 
             {/* Process Section */}
-            <section className="py-16 sm:py-20 px-4 sm:px-6 md:px-16 bg-gradient-to-b from-gray-50 to-gray-200 dark:from-zinc-900 dark:to-zinc-800">
+            <section className=" relative z-0 py-16 sm:py-20 px-4 sm:px-6 md:px-16 bg-gradient-to-b from-gray-50 to-gray-200 dark:from-zinc-900 dark:to-zinc-800">
               <motion.h2
                 className="text-2xl sm:text-3xl md:text-4xl font-bold text-center text-zinc-800 dark:text-white mb-10 sm:mb-12"
                 initial={{ opacity: 0 }}
@@ -250,24 +253,24 @@ export default function HomeClient({
               >
                 How It Works
               </motion.h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 sm:gap-8 max-w-6xl mx-auto">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 sm:gap-8 max-w-6xl mx-auto z-0">
                 {processSteps.map((step, index) => (
                   <motion.div
                     key={index}
-                    className="relative p-6 bg-white dark:bg-zinc-800 rounded-xl shadow-md hover:shadow-lg transition-all duration-300"
+                    className="relative p-6 bg-gray-100 dark:bg-zinc-800 rounded-xl shadow-md hover:shadow-lg transition-all duration-300"
                     initial={{ opacity: 0, y: 30 }}
                     whileInView={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.5, delay: index * 0.2 }}
                     viewport={{ once: true }}
                   >
-                    <div className="absolute -top-4 left-4 bg-blue-600 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold">
-                      {step.step}
+                     <div className="absolute left-[-3px] top-[-19px] bg-blue-600 rounded-[100%] p-1 px-3 text-2xl sm:text-xl mb-4">
+                        {step.step}
                     </div>
-                    <h3 className="text-lg sm:text-xl font-semibold text-zinc-800 dark:text-white mt-4 mb-2">
-                      {step.title}
+                     <h3 className="text-lg sm:text-xl font-semibold text-zinc-800 dark:text-white mb-2">
+                        {step.title}
                     </h3>
-                    <p className="text-sm sm:text-base text-zinc-600 dark:text-zinc-300">
-                      {step.description}
+                     <p className="text-sm sm:text-base text-zinc-600 dark:text-zinc-300">
+                        {step.description}
                     </p>
                   </motion.div>
                 ))}
@@ -276,58 +279,58 @@ export default function HomeClient({
           </section>
 
           {/* Footer */}
-          <footer className="bg-gray-200 text-zinc-300 px-6 sm:px-10 md:px-16 pt-12 pb-8">
+          <footer className="bg-gray-200 text-zinc-800 px-6 sm:px-10 md:px-16 pt-12 pb-8 dark:bg-zinc-900 dark:text-white">
   <div className="max-w-7xl mx-auto grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-10">
 
     {/* Brand Info */}
     <div>
       <Image className="w-[100px] h-[90px]" src={logo} alt="" />
-      <p className="text-sm text-zinc-900 mb-4">
+      <p className="text-sm text-zinc-900 dark:text-gray-300 mb-4">
         A secure and modern video meeting platform for everyone. Connect from anywhere, anytime.
       </p>
       <div className="flex items-center gap-4 mt-4">
         <a href="#" aria-label="Facebook">
-          <Facebook className="w-5 h-5 hover:text-white transition" />
+          <Facebook className="w-5 h-5 dark:hover:text-gray-400 hover:text-indigo-600 transition" />
         </a>
         <a href="#" aria-label="Twitter">
-          <Twitter className="w-5 h-5 hover:text-white transition" />
+          <Twitter className="w-5 h-5 dark:hover:text-gray-400 hover:text-indigo-600 transition" />
         </a>
         <a href="#" aria-label="Instagram">
-          <Instagram className="w-5 h-5 hover:text-white transition" />
+          <Instagram className="w-5 h-5 dark:hover:text-gray-400 hover:text-indigo-600 transition" />
         </a>
         <a href="#" aria-label="LinkedIn">
-          <Linkedin className="w-5 h-5 hover:text-white transition" />
+          <Linkedin className="w-5 h-5 dark:hover:text-gray-400 hover:text-indigo-600 transition" />
         </a>
       </div>
     </div>
 
     {/* Useful Links */}
     <div>
-      <h3 className="text-lg font-semibold text-white mb-4">Quick Links</h3>
+      <h3 className="text-lg font-semibold  mb-4">Quick Links</h3>
       <ul className="space-y-3 text-sm">
-        <li><a href="/about" className="hover:text-white">About Us</a></li>
-        <li><a href="/features" className="hover:text-white">Features</a></li>
-        <li><a href="/pricing" className="hover:text-white">Pricing</a></li>
-        <li><a href="/faq" className="hover:text-white">FAQs</a></li>
-        <li><a href="/contact" className="hover:text-white">Contact</a></li>
+        <li><a href="/about" className="dark:hover:text-gray-400 hover:text-indigo-600">About Us</a></li>
+        <li><a href="/features" className="dark:hover:text-gray-400 hover:text-indigo-600">Features</a></li>
+        <li><a href="/pricing" className="dark:hover:text-gray-400 hover:text-indigo-600">Pricing</a></li>
+        <li><a href="/faq" className="dark:hover:text-gray-400 hover:text-indigo-600">FAQs</a></li>
+        <li><a href="/contact" className="dark:hover:text-gray-400 hover:text-indigo-600">Contact</a></li>
       </ul>
     </div>
 
     {/* Resources */}
     <div>
-      <h3 className="text-lg font-semibold text-zinc-900 mb-4">Resources</h3>
+      <h3 className="text-lg font-semibold mb-4">Resources</h3>
       <ul className="space-y-3 text-sm">
-        <li><a href="/blog" className="hover:text-white">Blog</a></li>
-        <li><a href="/privacy" className="hover:text-white">Privacy Policy</a></li>
-        <li><a href="/terms" className="hover:text-white">Terms & Conditions</a></li>
-        <li><a href="/help" className="hover:text-white">Help Center</a></li>
-        <li><a href="/roadmap" className="hover:text-white">Roadmap</a></li>
+        <li><a href="/blog" className="dark:hover:text-gray-400 hover:text-indigo-600">Blog</a></li>
+        <li><a href="/privacy" className="dark:hover:text-gray-400 hover:text-indigo-600">Privacy Policy</a></li>
+        <li><a href="/terms" className="dark:hover:text-gray-400 hover:text-indigo-600">Terms & Conditions</a></li>
+        <li><a href="/help" className="dark:hover:text-gray-400 hover:text-indigo-600">Help Center</a></li>
+        <li><a href="/roadmap" className="dark:hover:text-gray-400 hover:text-indigo-600">Roadmap</a></li>
       </ul>
     </div>
 
     {/* Contact Info */}
     <div>
-      <h3 className="text-lg font-semibold text-white mb-4">Get in Touch</h3>
+      <h3 className="text-lg font-semibold mb-4">Get in Touch</h3>
       <ul className="space-y-4 text-sm">
         <li className="flex items-start gap-2">
           <Mail className="w-5 h-5 mt-1" />

@@ -113,6 +113,7 @@ io.on("connection", (socket) => {
       //   "to join room",
       //   roomId
       // );
+      // console.log()
       const targetSocketId = userSocketMap.get(requesterId);
       if (targetSocketId) {
         io.to(targetSocketId).emit("join:approved", {
@@ -248,13 +249,13 @@ io.on("connection", (socket) => {
         }
         // console.log(`💣 Room ${roomId} force closed by initiator ${OwnuserId}`);
       });
-    }
+    }else{
     if (roomUsers.has(OwnuserId)) {
       roomUsers.delete(OwnuserId);
       mapRoomTouserId.delete(OwnuserId);
-      userSocketMap.delete(OwnuserId);
       socket.leave(roomId);
       alreadyLeaveUser.add(OwnuserId);
+    }
     }
     if(userInROOM.get(roomId)?.size === 0) {
       userInROOM.delete(roomId);
@@ -262,11 +263,6 @@ io.on("connection", (socket) => {
       mapRoomTouserId.forEach((value, key) => {
         if (value === roomId) {
           mapRoomTouserId.delete(key);
-        }
-      });
-      userSocketMap.forEach((value, key) => {
-        if (value === roomId) {
-          userSocketMap.delete(key);
         }
       });
     }

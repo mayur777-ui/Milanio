@@ -102,8 +102,9 @@ export default function Login({ handleShow }: { handleShow: () => void }) {
         </div>
       )}
 
-      <div className="flex inset-0 absolute items-center justify-center bg-gradient-to-br from-white to-zinc-100 dark:from-zinc-900 dark:to-zinc-800 backdrop-blur-md">
-        <div className="relative w-[90%] max-w-5xl h-auto md:h-[75vh] p-6 md:p-10 rounded-[2rem] bg-[#e0e0e0] dark:bg-zinc-800 shadow-[inset_8px_8px_16px_#bebebe,inset_-8px_-8px_16px_#ffffff] dark:shadow-[inset_8px_8px_16px_#1c1c1c,inset_-8px_-8px_16px_#2c2c2c] flex flex-col md:flex-row items-center justify-between transition-all duration-300">
+      <div className="flex inset-0 absolute items-center justify-center bg-gradient-to-br from-white/10 to-zinc-100 dark:from-zinc-900 dark:to-zinc-800 backdrop-blur-md">
+        <div className="relative w-[90%] max-w-5xl min-h-[32rem] max-h-[95vh] overflow-auto p-6 md:p-10 rounded-2xl bg-white/30 dark:bg-zinc-900/60 backdrop-blur-xl border border-white/20 dark:border-zinc-700 shadow-lg flex flex-col md:flex-row items-center justify-between transition-all duration-300">
+
           <button
             className=" absolute top-5 text-zinc-950 right-7 cursor-pointer"
             onClick={handleShow}
