@@ -28,7 +28,8 @@ export default function VerifyOtp({ email }: { email: string }) {
         otp,
       });
 
-      if (res.status === 201) {
+      if (res.status === 200) {
+        console.log("OTP verified successfully");
         router.replace("/Loby");
       }
     } catch (err: any) {

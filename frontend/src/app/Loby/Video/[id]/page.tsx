@@ -517,11 +517,10 @@ useEffect(() => {
 
       setTimeout(() => {
       setShowNotification(null);
-    }, 3000);
+    }, 4000);
     })
     return () => {
       socket?.off("user:left");
-      setShowNotification(null);
     }
   },[socket, remoteStreams]);
   return (
