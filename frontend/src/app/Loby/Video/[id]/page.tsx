@@ -83,7 +83,7 @@ export default function Homepage() {
     let getStream = async () => {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: true,
-        video: false,
+        video: true,
       });
       console.log("📹 Local stream acquired:", stream);
       setMyStream(stream);
