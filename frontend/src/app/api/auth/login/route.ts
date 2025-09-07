@@ -10,7 +10,7 @@ export async function POST(request: NextRequest, Response: NextResponse) {
     });
     const { token } = res.data;
     const response = NextResponse.json({ success: true });
-    console.log("hello world");
+    // console.log("hello world");
     // response.headers.set( "Set-Cookie",serialize('token', token,{
     //     httpOnly: true,
     //     secure: process.env.NODE_ENV === "production",
@@ -24,7 +24,7 @@ export async function POST(request: NextRequest, Response: NextResponse) {
     secure: process.env.NODE_ENV === "production",
     sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
     path: "/",
-    maxAge: 60 * 60 * 24 * 7,
+    maxAge: 60 * 60 * 24,
 });
       return response;
    }catch (err: any) {

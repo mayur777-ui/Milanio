@@ -79,7 +79,7 @@ useEffect(() => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: true,
-        video: false,
+        video: true,
       });
 
       console.log("📹 Local stream acquired:", stream);
@@ -738,7 +738,7 @@ const toggleCamera = () => {
 </button>
 <button 
   onClick={toggleMic}
-  className="z-50 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg"
+  className="z-50 bg-gray-300 hover:bg-gray-600 hover:text-black text-zinc-700 px-4 py-2 rounded-lg"
 >
   {toggleStream.micToggle ? <Mic />:<MicOff />}
 </button>
