@@ -21,6 +21,7 @@ io.on("connection", (socket) => {
   console.log(`user ${socket.id} connected`);
   const userId = socket.handshake.query.userId as string;
   userSocketMap.set(userId, socket.id);
+  // console.log('this userid ', userId);
   socket.on("create:room", ({ roomId }: { roomId: string }) => {
     if ([...roomInitiator.values()].includes(userId)) {
       socket.emit("room:exists", { message: "you are already in a room" });
@@ -43,8 +44,9 @@ io.on("connection", (socket) => {
     });
     console.log(userInROOM);
   });
-  socket.on("room:validate", ({ roomid }: { roomid: string }) => {
+  socket.on("room:validate", ({ roomid, userDetails }: { roomid: string, userDetails:{name: string; email: string}}) => {
     console.log("validating room by user iD", userId);
+    // is the room is valid or not 
     if (!userInROOM.has(roomid)) {
       socket.emit("room:invalid", { message: "not exist" });
       return;
@@ -67,6 +69,8 @@ io.on("connection", (socket) => {
       }
     }
 
+
+    // To check whether user is already in a room or not
     const currentRoom = mapRoomTouserId.get(userId);
     if (currentRoom && currentRoom !== roomid) {
       socket.emit("already-in-room", {
@@ -74,8 +78,9 @@ io.on("connection", (socket) => {
       });
       return;
     }
+
+    // to see if user is rejoing same room(it comes in when user reload)
     const roomUser = userInROOM.get(roomid)!;
-    // console.log(roomUser);
     const isRejoining = roomUser.has(userId);
     if (isRejoining) {
       socket.join(roomid);
@@ -95,6 +100,7 @@ io.on("connection", (socket) => {
       io.to(initatorSocket).emit("incomming:join-request", {
         requesterId: userId,
         roomId: roomid,
+        userDetails: userDetails
       });
       console.log(
         `📨 Sent join request from ${userId} ➝ to initiator ${initator}`
@@ -105,15 +111,6 @@ io.on("connection", (socket) => {
   socket.on(
     "join:request-accept",
     ({ requesterId, roomId }: { requesterId: string; roomId: string }) => {
-      // Now you can use requesterId and roomId directly
-      const roomUser = userInROOM.get(roomId)!;
-      // console.log(
-      //   "✅ Initiator accepted request for",
-      //   requesterId,
-      //   "to join room",
-      //   roomId
-      // );
-      // console.log()
       const targetSocketId = userSocketMap.get(requesterId);
       if (targetSocketId) {
         io.to(targetSocketId).emit("join:approved", {
@@ -134,11 +131,10 @@ io.on("connection", (socket) => {
   });
   socket.on("join:room", ({ roomId, ownUserId }) => {
     socket.join(roomId);
-    console.log(userInROOM);
+    // console.log(userInROOM);
     const roomUsers = userInROOM.get(roomId);
     roomUsers?.add(userId);
     mapRoomTouserId.set(userId, roomId);
-    console.log(`${userId} joined room ${roomId}`);
     socket.emit("room:joined", { roomId, ownUserId });
   });
 
@@ -268,6 +264,19 @@ io.on("connection", (socket) => {
     }
     socket.to(roomId).emit("user:left", { leaver: OwnuserId, roomId });
   });
+
+
+  socket.on('mic:toggle', ({userId, micOn, roomId})=>{
+    socket.to(roomId).emit("peer:mic-toggled",{ userId, micOn });
+  })
+
+
+  
+  socket.on('camera:toggle', ({userId, cameraOn, roomId})=>{
+    socket.to(roomId).emit("peer:camera-toggled",{ userId, cameraOn });
+  })
+
+
   socket.on("disconnect", (reason: DisconnectReason) => {
     // for me(for each has parameter for map like this map.foreach((value, key)))
     console.log("disconnect emited");

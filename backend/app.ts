@@ -7,21 +7,18 @@ import userRouter from './routes/user.routes';
 config();
 
 
-app.use(cors({
-  origin: 'http://localhost:3000', // Your frontend port
+app.use(cors({                     
+  origin: 'http://localhost:3000',  //cors origin for secure connection 
   credentials: true
-}));
-
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+})); 
+app.use(express.json()); 
 app.use(cookieParser());
 
 
 
 
-
 app.use('/User', userRouter);
-app.get('/getRoomId', (req:Request, res:Response)=>{
+app.get('/getRoomId', (req:Request, res:Response)=>{ //this route for generate roomid's 
   const  roomId = Math.random().toString(36).substring(2, 15) as string;
   console.log("Generated roomId:", roomId);
   res.json({

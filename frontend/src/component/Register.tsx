@@ -79,10 +79,10 @@ export default function Register({ handleShow }: { handleShow: () => void }) {
         setInput({ name:"",email: "", password: "" });
     }
     } catch (err) {
+      console.log(err);
       if (axios.isAxiosError(err)) {
     const status = err.response?.status;
-
-    if (status === 404 || status === 401 || status === 500) {
+    if (status === 404 || status === 401 || status === 500 || status === 400) {
       setErrors({ both: err.response?.data?.error || "Unexpected error" });
     } else {
       setErrors({ both: "Something went wrong. Try again later." });

@@ -1,8 +1,6 @@
 "use client";
 
 import React, { useState } from "react";
-import Image from "next/image";
-// Your uploaded image
 import Lottie from "lottie-react";
 import loginAnimation from "../img/loginAuth.json";
 import { X, Eye, EyeClosed,Loader2  } from "lucide-react";
@@ -20,7 +18,7 @@ export default function Login({ handleShow }: { handleShow: () => void }) {
     both?: string;
   }>();
   const [showpass, setShowPass] = useState<boolean>(false);
-     const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
   const handleShowPass = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
     setShowPass((prev) => !prev);
