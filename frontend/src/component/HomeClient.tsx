@@ -118,7 +118,7 @@ export default function HomeClient({
               <button
                 className="block sm:hidden mb-2.5"
                 onClick={() => {
-                  console.log("clicked hamburger");
+                  // console.log("clicked hamburger");
                   setShow({ hamburger: !show.hamburger })}
                 }
               >

@@ -1,10 +1,12 @@
 "use client";
-import React, { use, useCallback, useEffect, useState } from "react";
+import React, {useCallback, useEffect, useState } from "react";
 import { useSocket } from "@/context/Socketcontext";
 import { useRouter } from "next/navigation";
 import { useTheme } from "@/context/themeContext";
 import Carousel from "@/component/Carousel";
 import { Moon, Sun,LogOut, Loader2  } from "lucide-react";
+import { User } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
 export default function Home() {
   const [input, setInput] = useState<string>("");
@@ -12,11 +14,13 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [isJoining, setIsjoining] = useState<boolean>(false);
   const [isCreating, setIsCreating] = useState<boolean>(false);
+  const [showUserBox, setshowUserBox] = useState<boolean>(false);
   const { socket } = useSocket();
   const router = useRouter();
   const [isreject, setisreject] = useState<string>("");
   const { theme, toggleTheme } = useTheme();
-  const [user,setUser] = useState({});
+const [user, setUser] = useState<{name: string; email: string} | null>(null);
+
 
 
   useEffect(()=>{
@@ -27,7 +31,10 @@ export default function Home() {
         return;
       }
       const data = await res.json();
-      setUser(data.user);
+      setUser({
+        name: data.user.user.name,
+        email: data.user.user.email        
+      });
     }
     fetchUser();
   },[]);
@@ -49,35 +56,24 @@ export default function Home() {
       }else{
         router.replace(`/Loby/Video/${roomId}`);
       }
-     
-      // setIsjoining(false);
     },
     [router]
   );
+
+  // User Profile show and hide
+  const handleShowUser = () =>{
+    setshowUserBox(!showUserBox);
+  }
   useEffect(() => {
     socket?.on("room:created", hadleRoomCreated);
 
     return () => {
       socket?.off("room:created", hadleRoomCreated);
     };
-  }, [socket, hadleRoomCreated]);
-
-
-
-    useEffect(() => {
-      const navigateEntries = performance.getEntriesByType(
-        "navigation"
-      ) as PerformanceNavigationTiming[];
-      console.log("Navigation type:", navigateEntries[0]?.type);
-      const isReload = navigateEntries[0]?.type === "reload";
-      console.log("Is reload:", isReload);
-      // console.log(navigateEntries[0]?.type);
-      },[]);
-  
+  }, [socket, hadleRoomCreated]);  
   // to join room
   const JoinRoom = async () => {
     setIsCreating(true);
-    // console.log(roomid);
     let res = await fetch("http://localhost:8000/getRoomId", {
       headers: {
         "Content-Type": "application/json",
@@ -138,7 +134,7 @@ export default function Home() {
     socket?.on(
       "join:approved",
       ({ roomId, ownUserId }: { roomId: string; ownUserId: string }) => {
-        console.log("Join approved for room:", roomId, "ownUserId:", ownUserId);
+        // console.log("Join approved for room:", roomId, "ownUserId:", ownUserId);
         socket.emit("join:room", { roomId, ownUserId });
       }
     );
@@ -167,16 +163,8 @@ export default function Home() {
 
   useEffect(() => {
     socket?.on("room:joined", (data) => {
-      console.log(
-        "🚀 Emitting webrtc:start for room:",
-        data.roomId,
-        "ownUserId:",
-        data.ownUserId
-      );
-      // socket.emit('webrtc:start',{roomId:data.roomId,requesterId:data.requesterId});
       localStorage.setItem("webrtc:start", "true");
       router.replace(`Loby/Video/${data.roomId}`);
-      setIsjoining(false);
     });
     return () => {
       socket?.off("room:joined");
@@ -190,7 +178,7 @@ export default function Home() {
     }
     console.log("Joining room with ID:", input);
     setIsjoining(true);
-    socket?.emit("room:validate", { roomid: input });
+    socket?.emit("room:validate", { roomid: input, userDetails: user});
   };
 
   useEffect(() => {
@@ -206,32 +194,30 @@ export default function Home() {
 
   const handleLogout = async (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
-    console.log("Logging out...");
     const res = await fetch("/api/auth/Logout", {
       method: "POST",
     })
     if (!res.ok) {
-      console.error("Logout failed");
       return;
     }
     router.replace("/");
   }
   return (
-    <div className="w-full h-full bg-white dark:bg-zinc-900 transition-colors duration-300">
-      {/* Header */}
-      {isCreating || isJoining && (
+    <>
+    {isCreating || isJoining && (
           <div className="fixed inset-0 bg-black/30 bg-opacity-30 z-50 flex items-center justify-center">
             <Loader2 className="animate-spin text-white w-10 h-10" />
           </div>
       )}
+    <div className="w-full h-full bg-white dark:bg-zinc-900 transition-colors duration-300">
+      {/* Header */}
+      {/* {isreject && <div className="absolute left-1/2 -translate-x-1/2 top-5"><p className="border border-black px-5 py-3 dark:border-amber-50 text-red-500 text-md text-center">{isreject}</p></div>} */}
       <header className="flex items-center justify-between p-6">
         <h1 className="text-2xl font-bold text-zinc-800 dark:text-white">
           Milanio
         </h1>
         <div className="flex items-center gap-4">
-          <button onClick={handleLogout} className="p-2 rounded-full border dark:border-zinc-700 border-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 cursor-pointer transition">
-            <LogOut />
-          </button>
+          
         <button
           onClick={toggleTheme}
           className="p-2 rounded-full border dark:border-zinc-700 border-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition"
@@ -242,6 +228,49 @@ export default function Home() {
             <Moon className="text-blue-600" size={20} />
           )}
         </button>
+          <div className="relative">
+      {/* User Icon */}
+      <button
+        onClick={handleShowUser}
+        className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+      >
+        <User className="w-6 h-6 text-gray-700 dark:text-gray-200" />
+      </button>
+
+      {/* Dropdown */}
+      <AnimatePresence>
+        {showUserBox && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+            className="absolute top-full right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 p-4 z-10"
+          >
+            {/* User Info */}
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold">
+                {user?.name?.charAt(0).toUpperCase() || "U"}
+              </div>
+              <div className="flex flex-col">
+                <span className="font-semibold text-gray-800 dark:text-gray-200">
+                  {user?.name || "Loading..."}
+                </span>
+                <span className="text-sm text-gray-500 dark:text-gray-400">
+                  {user?.email || "Loading..."}
+                </span>
+              </div>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-800 dark:text-gray-200"
+            >
+              <LogOut className="w-5 h-5" /> Logout
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
         </div>
       </header>
 
@@ -291,5 +320,6 @@ export default function Home() {
         </div>
       </div>
     </div>
+    </>
   );
 }

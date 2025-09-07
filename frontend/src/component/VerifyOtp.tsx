@@ -3,6 +3,8 @@ import { useState } from "react";
 import axios from "axios";
 import { useRouter } from "next/navigation";
 import { Flag, Loader2 } from "lucide-react";
+import { Send } from "lucide-react";
+
 
 export default function VerifyOtp({ email }: { email: string }) {
   const [otp, setOtp] = useState("");
@@ -81,12 +83,14 @@ export default function VerifyOtp({ email }: { email: string }) {
   </div>
 )}
     {showResend && (
-  <div className="mt-4 text-center">
-    <div className="inline-block bg-green-100 text-green-700 px-4 py-2 rounded-lg text-sm transition-all duration-300">
-      OTP resent successfully 🎉
+  // <div className="text-center">
+  <div className="absolute left-1/2 -translate-x-1/2 top-1.5 bg-green-100 text-green-700 p-1 md:px-6 py-3 rounded-lg md:text-xl transition-all duration-300">
+       OTP resend successfully!
     </div>
-  </div>
+  // </div>
 )}
+
+
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-zinc-100 to-zinc-300 dark:from-zinc-900 dark:to-zinc-800 px-4">
         
       <div className="w-full max-w-md bg-white dark:bg-zinc-900 rounded-2xl shadow-xl p-8 transition-all duration-300">

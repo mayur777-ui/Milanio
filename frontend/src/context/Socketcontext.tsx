@@ -24,23 +24,10 @@ export const SocketProvider = ({children}:{
     const initRef = useRef(false);
     const userId = useUserid(); 
     const [ready, setReady] = useState(false);
-//     useEffect(() => {
-//   console.log("🔥 SocketProvider mounted");
-
-//   return () => {
-//     console.log("🧹 SocketProvider unmounted");
-//   };
-// }, []);
-    
     useEffect(() => {
         // Prevent multiple initializations
         if (initRef.current || !userId) return;
-        
-        // console.log("🚀 SocketProvider: Initializing socket context");
-        
-        // Get the global socket instance
         const socketInstance = getSocket(userId);
-        console.log(socketInstance)
         if (socketInstance) {
             setSocket(socketInstance);
             setIsConnected(socketInstance.connected);
@@ -48,18 +35,15 @@ export const SocketProvider = ({children}:{
             
             // Event handlers
             const handleConnect = () => {
-                console.log('✅ SocketContext: Connected with ID:', socketInstance.id);
                 setIsConnected(true);
                 setSocketId(socketInstance.id || null);
             };
 
             const handleDisconnect = (reason: string) => {
-                console.log('❌ SocketContext: Disconnected:', reason);
                 setIsConnected(false);
             };
 
             const handleConnectError = (error: Error) => {
-                console.log('🚫 SocketContext: Connection error:', error);
                 setIsConnected(false);
             };
 
@@ -83,18 +67,19 @@ export const SocketProvider = ({children}:{
                 socketInstance.off('connect', handleConnect);
                 socketInstance.off('disconnect', handleDisconnect);
                 socketInstance.off('connect_error', handleConnectError);
+                if (socketInstance.connected) {
+                    socketInstance.disconnect();
+                }
             };
         }
-    }, [userId]); // Empty deps - run only once
+    }, [userId]); 
     
 
     // Debug logging
     useEffect(() => {
         const interval = setInterval(() => {
             const status = getSocketStatus();
-            // console.log("🔍 Socket Status Check:", status);
         }, 5000);
-        
         return () => clearInterval(interval);
     }, []);
     

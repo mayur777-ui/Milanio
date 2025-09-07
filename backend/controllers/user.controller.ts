@@ -4,7 +4,6 @@ import Redisclient from '../utility/RediesClient';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { sendEmailOtp } from '../utility/email';
-import { Prisma } from '@prisma/client';
 declare global {
   namespace Express {
     interface Request {
@@ -12,9 +11,11 @@ declare global {
     }
   }
 }
+
+
+// it's for when user first time come to our website we go for email and verify it so that no a dublicate unauthorized person get into our web app
 export const ReqOpt = async(req: Request, res: Response) =>{
-    console.log("Registering user with data:", req.body);
-    const {name,email, password} = req.body;
+    const {name,email, password} = req.body;  
     try{
         if(!name || !email || !password){
             res.status(400).json({error: 'All fields are required'});
@@ -32,7 +33,7 @@ export const ReqOpt = async(req: Request, res: Response) =>{
         const hashPass = await bcrypt.hash(password, 10);
         const otp = Math.floor(Math.random()* (9999-1000 + 1))  + 1000;
         await Redisclient.set(`register:${email}`,JSON.stringify({name:name, password:hashPass, otp:otp.toString()}),{EX: 1800});
-        const data = await Redisclient.get(`register:${email}`);
+        // const data = await Redisclient.get(`register:${email}`);
         // console.log("Data from Redis:", data);
         await sendEmailOtp(email as string, otp);
         res.status(200).json({message: 'OTP sent to your email', email: email});
@@ -189,7 +190,7 @@ export const getUser = async(req: Request, res: Response) =>{
         }
         res.status(200).json({user: user});
     }catch(err){
-        console.error(err);
+        // console.error(err);
         res.status(500).json({error: 'Internal Server Error'});
     }
 }

@@ -4,10 +4,10 @@ import { useSocket } from "@/context/Socketcontext";
 import { useParams } from "next/navigation";
 import PeerService from "@/utility/Peer";
 import { useUserid } from "@/context/UserIdcontext";
-import Peer from "@/utility/Peer";
 import { useRouter } from "next/navigation";
-import { PhoneCall } from "lucide-react";
+import { PhoneCall,MicOff,Mic,CameraOff,Camera } from "lucide-react";
 import { flushSync } from "react-dom";
+import { useRoomReload } from "@/hooks/useRoomReload";
 import Chat from "@/component/Chat";
 export default function Homepage() {
   const { socket, isConnected, socketId } = useSocket();
@@ -17,7 +17,7 @@ export default function Homepage() {
   const [copied, setCopied] = useState(false);
   const [roomStatus, setRoomStatus] = useState<boolean>(false);
   const [ispending, setIspending] = useState<
-  { requesterId: string; roomId: string }[]
+  { requesterId: string; roomId: string, userDetails:{name: string; email: string} }[]
 >([]);
   const [showJoinPermission, setShowJoinPermission] = useState<boolean>(false);
   const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(
@@ -36,10 +36,17 @@ export default function Homepage() {
   const mainUserId = useUserid();
   const userIdREF = useRef<string>(mainUserId);
   const streamRef = useRef<MediaStream | null>(null);
-
-
-
-
+  const isReload = useRoomReload(roomId);
+  const [toggleStream, setToggleStream] = useState<{cameraToggle?:boolean,micToggle?:boolean}>({
+    cameraToggle:true,
+    micToggle: true
+  });
+  type PeerInfo = {
+    userId: string,
+    cameraOn: boolean,
+    micOn: boolean
+  }
+  const [peers, setPeers] = useState<PeerInfo[]>([]);
 
   useEffect(() => {
     if (mainUserId) {
@@ -47,9 +54,7 @@ export default function Homepage() {
     }
   }, [mainUserId]);
 
-  useEffect(() => {
-    streamRef.current = myStream;
-  }, [myStream]);
+
 
 
   const waitForStream = async(): Promise<MediaStream> =>{
@@ -69,41 +74,66 @@ export default function Homepage() {
     })
   }
 
-  useEffect(() => {
-    let getStream = async () => {
+useEffect(() => {
+  const getStream = async () => {
+    try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: true,
-        video: true,
+        video: false,
       });
+
       console.log("📹 Local stream acquired:", stream);
+
+      // Optionally inspect tracks
+      const allTracks = stream.getTracks();
+      console.log("All tracks:", allTracks);
+
+      streamRef.current = stream;
       setMyStream(stream);
+
       const shouldStart = localStorage.getItem("webrtc:start");
       if (shouldStart === "true") {
         localStorage.removeItem("webrtc:start");
         socket?.emit("webrtc:start", { roomId, ownUserId: mainUserId });
       }
-    };
-    if(!streamRef.current){
-      getStream();
+    } catch (err) {
+      console.error("❌ Failed to get media stream:", err);
+
+      // Fallback: maybe only request audio if camera fails
+      try {
+        const audioStream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+          video: false,
+        });
+        console.log("🎤 Only audio acquired:", audioStream);
+        streamRef.current = audioStream;
+        setMyStream(audioStream);
+      } catch (audioErr) {
+        console.error("❌ No audio devices either:", audioErr);
+        // At this point, you could disable call controls / show error UI
+      }
     }
-  }, []);
+  };
+
+  if (!streamRef.current) {
+    getStream();
+  }
+}, [socket, roomId, mainUserId]);
+
+
+  //   useEffect(() => {
+  //   streamRef.current = myStream;
+  // }, [myStream]);
 
   const handleJoinRequest = useCallback(
-    ({ requesterId, roomId }: { requesterId: string; roomId: string }) => {
-      // console.log(
-      //   "📨 Join request received from:",
-      //   requesterId,
-      //   "for room:",
-      //   roomId
-      // );
+    ({ requesterId, roomId, userDetails }: { requesterId: string; roomId: string, userDetails:{name: string; email: string}}) => {
       setIspending((prev)=>{
         const alreadyRequested = prev.some(req => req.requesterId === requesterId);
   if (alreadyRequested) return prev;
-  return [...prev, { requesterId, roomId }];
+  return [...prev, { requesterId, roomId, userDetails }];
       }
       );
       setShowJoinPermission(true);
-      // console.log("✅ Join request received");
     },
     [setIspending, setShowJoinPermission]
   );
@@ -133,7 +163,7 @@ export default function Homepage() {
       setShowJoinPermission(false);
     }
    
-  }, [ispending, socket]);
+  }, [socket]);
 
   const handleInRejected = useCallback((requesterId:string, roomId:string ) => {
     if(!requesterId || !roomId){
@@ -148,7 +178,7 @@ export default function Homepage() {
     if(ispending.length === 0){
       setShowJoinPermission(false);
     }
-  }, [ispending, socket]);
+  }, [socket]);
 
   type validationDto = {
     roomId: string;
@@ -157,13 +187,9 @@ export default function Homepage() {
   };
 
   useEffect(() => {
-    const navigateEntries = performance.getEntriesByType(
-      "navigation"
-    ) as PerformanceNavigationTiming[];
-    console.log("Navigation type:", navigateEntries[0]?.type);
-    const isReload = navigateEntries[0]?.type === "reload";
+    
+    console.log("Navigation type:", isReload);
     if (!socket || !isReload ) return;
-    // console.log("🔗 Validating room:", roomId);
     const handleRealoadValidation = async() => {
       try {
         await waitForStream();
@@ -199,7 +225,7 @@ export default function Homepage() {
       socket.off("room:valid", handleValid);
       socket.off("room:invalid", handleInvalid);
     };
-  }, [socket, roomId]);
+  }, [socket, roomId, isReload]);
 
   type handleStartCallingDTO = {
     ownSocketId: string;
@@ -449,7 +475,7 @@ useEffect(() => {
     }
   },[router, socket]);
 
-  const totalStreams = remoteStreams.size + (myStream ? 1 : 0);
+  const totalStreams = remoteStreams.size + (streamRef.current ? 1 : 0);
   let gridClass = "grid-cols-1";
   if (totalStreams === 2) gridClass = "grid-cols-2";
   else if (totalStreams === 3) gridClass = "grid-cols-3";
@@ -523,10 +549,78 @@ useEffect(() => {
       socket?.off("user:left");
     }
   },[socket, remoteStreams]);
+  
+
+
+const toggleMic = () => {
+  if (!streamRef.current) return;
+  streamRef.current.getAudioTracks().forEach(track => {
+    track.enabled = !track.enabled; // mute/unmute
+  });
+  const newMicState = !toggleStream.micToggle;
+  setToggleStream(prev => ({
+    ...prev, micToggle: newMicState
+  }))
+
+  socket?.emit('mic:toggle', {
+    userId:mainUserId,
+    micOn: newMicState,
+    roomId
+  })
+};
+
+const toggleCamera = () => {
+  if (!streamRef.current) return;
+
+  streamRef.current.getVideoTracks().forEach(track => {
+    track.enabled = !track.enabled; // on/off
+  });
+  const newCameraState = !toggleStream.cameraToggle
+  setToggleStream(prev => ({
+    ...prev, cameraToggle: newCameraState
+  }))
+
+  socket?.emit('camera:toggle',{
+    userId:mainUserId,
+    cameraOn:newCameraState,
+    roomId
+  })
+};
+
+
+  useEffect(()=>{
+    socket?.on('peer:mic-toggled',(data: { userId: string; micOn: boolean })=>{
+      setPeers(prev => {
+        let exist = prev.find(p => p.userId === data.userId)
+        if(exist){
+          return prev.map(peer => peer.userId === data.userId ? {...peer, micOn: data.micOn} : peer)
+        }else{
+          return [...prev, {userId: data.userId, micOn: data.micOn, cameraOn: true}]
+        }
+      })
+    })
+  },[socket])
+
+
+
+  useEffect(()=>{
+    socket?.on('peer:camera-toggled', (data: {userId:string,cameraOn: boolean})=>{
+      setPeers(prev => {
+        let exist  = prev.map(p => p.userId === data.userId)
+        if(exist){
+          return prev.map(peer => peer.userId === data.userId ? {...peer, cameraOn: data.cameraOn}: peer)
+        }else{
+          return [...prev, {userId: data.userId, micOn:true, cameraOn: data.cameraOn}]
+        }
+      })
+    })
+  })
+
+
   return (
     <>
       {/* Optional chat input (currently commented out) */}
-      <div className="w-full min-h-screen bg-gray-900 flex flex-col">
+      <div className="w-full min-h-screen bg-black flex flex-col">
         {showNotification && (
           <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50">
             {showNotification.leaver} has left the room {showNotification.roomid}
@@ -535,21 +629,32 @@ useEffect(() => {
         <div
           className={`flex-1 p-4 grid ${gridClass} gap-4 place-items-center max-w-[1920px] mx-auto`}
         >
-          {myStream && (
+          {streamRef.current && (
             <div className="relative w-full h-full max-h-[360px] sm:max-h-[480px] rounded-lg overflow-hidden shadow-lg">
               <video
                 autoPlay
                 muted
                 playsInline
                 ref={(video) => {
-                  if (video && myStream) video.srcObject = myStream;
+                  if (video && streamRef.current) video.srcObject = streamRef.current;
                 }}
                 className="w-full h-full object-cover bg-black"
               />
-              <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-sm">
+              {
+                !toggleStream.cameraToggle && (
+                   <div className="absolute inset-0 flex items-center justify-center bg-blue-300 bg-opacity-70 rounded-lg">
+      <div className="flex flex-col items-center space-y-2 text-white">
+        <CameraOff size={40} />
+        <span>Camera Off</span>
+      </div>
+    </div>
+                )
+              }
+              <div className="absolute bottom-2 left-2 bg-gray bg-opacity-50 text-white px-2 py-1 rounded text-sm">
                 You
               </div>
             </div>
+            
           )}
           {Array.from(remoteStreams.entries()).map(([userId, stream]) => (
             <div
@@ -564,6 +669,23 @@ useEffect(() => {
                 }}
                 className="w-full h-full object-cover bg-black"
               />
+              {peers.length > 0 && peers.map(p => {
+                return <div key={userId}>
+                {(p.userId === userId) && <>
+                  {!p.micOn && (
+        <div className="absolute top-2 right-2 bg-black bg-opacity-50 p-2 rounded-full">
+          <MicOff className="text-red-500" />
+        </div>
+      )}
+                  {!p.cameraOn && <div className="absolute inset-0 flex items-center justify-center bg-blue-300 bg-opacity-70 rounded-lg">
+      <div className="flex flex-col items-center space-y-2 text-white">
+        <CameraOff size={40} />
+        <span>Camera Off</span>
+      </div>
+    </div>}
+                </> }
+                </div>
+              })}
               <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-sm">
                 {userId}
               </div>
@@ -579,7 +701,7 @@ useEffect(() => {
             
             <div key={request.requesterId} className=" bg-gray-800 p-6 rounded-lg shadow-xl max-w-sm">
             <p className="text-white text-lg font-semibold mb-4">
-              {request?.requesterId} wants to join
+              {request?.userDetails?.name ?? request?.requesterId} wants to join
             </p>
             <div className="flex justify-end gap-3">
               <button
@@ -601,7 +723,7 @@ useEffect(() => {
         )}
         
 
-<div className="fixed flex gap-2 items-center justify-center bottom-4 left-1/2 transform -translate-x-1/2">
+<div className="fixed flex gap-2 items-center justify-center bottom-4 left-1/2 transform -translate-x-1/2 p-3">
   <button
         onClick={handleCopy}
         className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow"
@@ -613,6 +735,18 @@ useEffect(() => {
   className="z-50 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg"
 >
   <PhoneCall />
+</button>
+<button 
+  onClick={toggleMic}
+  className="z-50 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg"
+>
+  {toggleStream.micToggle ? <Mic />:<MicOff />}
+</button>
+<button 
+  onClick={toggleCamera}
+  className="z-50 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg"
+>
+  {toggleStream.cameraToggle ? <Camera />: <CameraOff />}
 </button>
 </div>
 
