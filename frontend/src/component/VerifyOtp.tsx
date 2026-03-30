@@ -4,6 +4,7 @@ import axios from "axios";
 import { useRouter } from "next/navigation";
 import { Flag, Loader2 } from "lucide-react";
 import { Send } from "lucide-react";
+import { UserService } from "@/apis/user.api";
 
 
 export default function VerifyOtp({ email }: { email: string }) {
@@ -25,13 +26,13 @@ export default function VerifyOtp({ email }: { email: string }) {
 }));
     setError(null);
     try {
-      const res = await axios.post("/api/auth/VerifyOtp", {
-        email,
-        otp,
-      });
-
+      // const res = await axios.post("/api/auth/VerifyOtp", {
+      //   email,
+      //   otp,
+      // });
+      const res = await UserService.verifyOtp({ email, otp});
       if (res.status === 200) {
-        console.log("OTP verified successfully");
+        localStorage.setItem('adminToken', res.data.token);
         router.replace("/Loby");
       }
     } catch (err: any) {
@@ -53,8 +54,8 @@ export default function VerifyOtp({ email }: { email: string }) {
     otpresendLoader: true,
 }));
     try{
-        const res = await axios.post("http://localhost:8000/user/resendOtp", {email});
-    
+        // const res = await axios.post("http://localhost:8000/user/resendOtp", {email});
+        const res = await UserService.resendOtp(email);
     if (res.status === 200) {
       setError(null);
       setOtp("");

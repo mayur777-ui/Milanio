@@ -1,7 +1,12 @@
 import VerifyOtp from "@/component/VerifyOtp";
 
-export default function Page({ params }: { params: { email: string } }) {
-  const email = decodeURIComponent(params.email);
+export default async function Page({
+  params,
+}: {
+  params: Promise<{ email: string }>;
+}) {
+  const { email: encodedEmail } = await params;
+  const email = decodeURIComponent(encodedEmail);
 
   if (!email) return <p>Invalid request</p>;
 

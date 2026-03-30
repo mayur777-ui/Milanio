@@ -7,6 +7,7 @@ import Carousel from "@/component/Carousel";
 import { Moon, Sun,LogOut, Loader2  } from "lucide-react";
 import { User } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { UserService } from "@/apis/user.api";
 
 export default function Home() {
   const [input, setInput] = useState<string>("");
@@ -23,21 +24,25 @@ const [user, setUser] = useState<{name: string; email: string} | null>(null);
 
 
 
-  useEffect(()=>{
-    const fetchUser = async() => {
-      const res = await fetch("/api/auth/getUser");
-      if (!res.ok) {
-        console.error("Failed to fetch user data");
-        return;
-      }
-      const data = await res.json();
+  useEffect(() => {
+  const fetchUser = async () => {
+    try {
+      const res = await UserService.getUsre();
+
+      const data = res.data; // ✅ axios style
+
       setUser({
-        name: data.user.user.name,
-        email: data.user.user.email        
+        name: data.user.name,
+        email: data.user.email,
       });
+
+    } catch (err) {
+      console.error("Failed to fetch user data", err);
     }
-    fetchUser();
-  },[]);
+  };
+
+  fetchUser();
+}, []);
   // To handle input for join via roomid
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInput(e.target.value);
@@ -194,12 +199,7 @@ const [user, setUser] = useState<{name: string; email: string} | null>(null);
 
   const handleLogout = async (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
-    const res = await fetch("/api/auth/Logout", {
-      method: "POST",
-    })
-    if (!res.ok) {
-      return;
-    }
+    localStorage.removeItem("adminToken");
     router.replace("/");
   }
   return (

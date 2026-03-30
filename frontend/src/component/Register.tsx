@@ -9,6 +9,7 @@ import { X, Eye, EyeClosed, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import validatePassword from "../utility/Password";
 import axios from "axios";
+import { UserService } from "@/apis/user.api";
 export default function Register({ handleShow }: { handleShow: () => void }) {
   let router = useRouter();
   let [input, setInput] = useState<{ name:string, email: string; password: string }>({
@@ -66,12 +67,13 @@ export default function Register({ handleShow }: { handleShow: () => void }) {
     }
     try {
         setLoading(true);
-      let res = await axios.post(
-        "http://localhost:8000/User/register",input,
-        {
-          headers: { "Content-Type": "application/json" },
-        }
-      );
+      // let res = await axios.post(
+      //   "http://localhost:8000/User/register",input,
+      //   {
+      //     headers: { "Content-Type": "application/json" },
+      //   }
+      // );
+      let res = await UserService.ReqOtp(input);
       const email = input.email;
       if (res.status === 200) {
         // console.log("Login successful:", res.data);

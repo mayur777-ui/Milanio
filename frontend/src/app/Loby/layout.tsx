@@ -1,20 +1,10 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+"use client";
+
+import { useEffect, useState } from "react";
 import { SocketProvider } from "@/context/Socketcontext";
 import { UseridProvider } from "@/context/UserIdcontext";
 import { ThemeProvider } from "@/context/themeContext";
-import { Inter } from 'next/font/google';
-import { cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+import { useRouter } from "next/navigation";
 
 
 export default function RootLayout({
@@ -22,13 +12,27 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const router = useRouter();
+  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
 
-// const cookieStore = cookies();
-// const token = cookieStore.get('token')?.value;
-// if(!token){
-//   redirect('/?unauthorized=true');
-//   return;
-// }
+  useEffect(() => {
+    const token = localStorage.getItem("adminToken");
+    if (!token) {
+      setIsAuthorized(false);
+      router.replace("/");
+      return;
+    }
+    setIsAuthorized(true);
+  }, [router]);
+
+  if (isAuthorized !== true) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-200">
+        Checking access...
+      </div>
+    );
+  }
+
   return (
         <UseridProvider>
           <SocketProvider>

@@ -1,8 +1,15 @@
-import { cookies } from "next/headers";
+'use client'
+
+import { useEffect, useState } from "react";
 import HomeClient from "@/component/HomeClient";
 
-export default async function Home() {
-  const token = (await cookies()).get("token")?.value;
-  const isAuthenticated = token ? true : false;
+export default function Home() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  useEffect(() => {
+    const token = localStorage.getItem('adminToken');
+    setIsAuthenticated(!!token);
+  }, []);
+
   return <HomeClient isAuthenticated={isAuthenticated} />;
 }

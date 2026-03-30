@@ -6,6 +6,7 @@ import loginAnimation from "../img/loginAuth.json";
 import { X, Eye, EyeClosed,Loader2  } from "lucide-react";
 import { useRouter } from "next/navigation";
 import axios from "axios";
+import { UserService } from '@/apis/user.api'
 export default function Login({ handleShow }: { handleShow: () => void }) {
   let router = useRouter();
   let [input, setInput] = useState<{ email: string; password: string }>({
@@ -51,17 +52,18 @@ export default function Login({ handleShow }: { handleShow: () => void }) {
     }
     try {
         setLoading(true);
-      let res = await axios.post(
-        "/api/auth/login",
-        {
-          email: input.email,
-          password: input.password,
-        },
-        {
-          headers: { "Content-Type": "application/json" },
-        }
-      );
-      
+      // let res = await axios.post(
+      //   "/api/auth/login",
+      //   {
+      //     email: input.email,
+      //     password: input.password,
+      //   },
+      //   {
+      //     headers: { "Content-Type": "application/json" },
+      //   }
+      // );
+      let res = await UserService.Login({email: input.email,password: input.password});
+      localStorage.setItem('adminToken', res.data.token);
       if (res.status === 200) {
         // console.log("Login successful:", res.data);
         router.replace("/Loby");
