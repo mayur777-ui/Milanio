@@ -15,7 +15,7 @@
     "keen-slider": "^6.8.6",
     "lottie-react": "^2.4.1",
     "lucide-react": "^0.525.0",
-    "next": "15.3.4",
+    "next": "15.3.8",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "socket.io-client": "^4.8.1",
