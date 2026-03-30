@@ -8,7 +8,7 @@ config();
 
 
 app.use(cors({                     
-  origin: 'http://localhost:3000',  //cors origin for secure connection 
+  origin: process.env.FRONTEND_URL,  //cors origin for secure connection 
   credentials: true
 })); 
 app.use(express.json()); 
