@@ -1,5 +1,4 @@
 import axios, { AxiosHeaders } from "axios";
-import { headers } from "next/headers";
 
 
 function getBaseUrl() {
