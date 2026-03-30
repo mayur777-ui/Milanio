@@ -11,7 +11,7 @@ const dotenv_1 = require("dotenv");
 const user_routes_1 = __importDefault(require("./routes/user.routes"));
 (0, dotenv_1.config)();
 socket_1.app.use((0, cors_1.default)({
-    origin: 'http://localhost:3000', //cors origin for secure connection 
+    origin: process.env.FRONTEND_URL, //cors origin for secure connection 
     credentials: true
 }));
 socket_1.app.use(express_1.default.json());
@@ -24,6 +24,7 @@ socket_1.app.get('/getRoomId', (req, res) => {
         roomId: roomId
     });
 });
-socket_1.server.listen(8000, () => {
-    console.log("✅ Server with Socket.IO listening on port 8000");
+const port = Number(process.env.PORT) || 8000;
+socket_1.server.listen(port, () => {
+    console.log(`Server with Socket.IO listening on port ${port}`);
 });

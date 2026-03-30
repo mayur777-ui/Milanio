@@ -26,6 +26,8 @@ app.get('/getRoomId', (req:Request, res:Response)=>{ //this route for generate r
   })
 })
 
-server.listen(8000, () => {
-  console.log("✅ Server with Socket.IO listening on port 8000");
+const port = Number(process.env.PORT) || 8000;
+
+server.listen(port, () => {
+  console.log(`Server with Socket.IO listening on port ${port}`);
 });
