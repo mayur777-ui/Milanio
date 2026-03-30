@@ -48,5 +48,10 @@ export const UserService = {
     async getUsre(){
         let res = await apiClient.get("/User/getUser");
         return res;
+    },
+
+    async getRoomId(){
+         let res = await apiClient.get("/getRoomId");
+         return res;
     }
 }
