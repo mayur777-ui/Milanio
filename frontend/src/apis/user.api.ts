@@ -1,4 +1,5 @@
 import { apiClient } from "@/utility/axiosinstance"
+import { register } from "module"
 
 type regUser = {
     name: string,
@@ -17,14 +18,14 @@ type verifyload = {
 }
 
 export const UserService = {
-    async ReqOtp(payload : regUser){
-        let res = await apiClient.post('/User/register',payload,{
-            headers:{
-                "Content-Type":"application/json"
-            }
-        })
-        return  res;
-    },
+    // async ReqOtp(payload : regUser){
+    //     let res = await apiClient.post('/User/register',payload,{
+    //         headers:{
+    //             "Content-Type":"application/json"
+    //         }
+    //     })
+    //     return  res;
+    // },
 
     async Login(payload: LoginUser){
         let res = await apiClient.post("/User/login",payload);
@@ -53,5 +54,9 @@ export const UserService = {
     async getRoomId(){
          let res = await apiClient.get("/getRoomId");
          return res;
-    }
+    },
+    async register(payload: regUser){
+        let res = await apiClient.post("/User/register", payload);
+        return res;
+    } 
 }

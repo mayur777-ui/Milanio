@@ -194,3 +194,80 @@ export const getUser = async(req: Request, res: Response) =>{
         res.status(500).json({error: 'Internal Server Error'});
     }
 }
+
+
+
+export const Registerdirect = async (req: Request, res: Response) => {
+  try {
+    const { name, email, password } = req.body;
+
+    // 🔍 1. Validation
+    if (!name || !email || !password) {
+      res.status(400).json({
+        message: "All fields are required",
+      });
+    }
+
+    if (password.length < 8) {
+      res.status(400).json({
+        message: "Password must be at least 6 characters",
+      });
+    }
+
+    const normalizedEmail = email.toLowerCase();
+
+    // 🔍 2. Check existing user
+    const existingUser = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+    });
+
+    if (existingUser) {
+       res.status(400).json({
+        message: "User already exists",
+      });
+    }
+
+    // 🔐 3. Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // 🧑‍💻 4. Create user
+    const user = await prisma.user.create({
+      data: {
+        name,
+        email: normalizedEmail,
+        password: hashedPassword,
+      },
+    });
+
+    // 🔑 5. Generate JWT
+    const token = jwt.sign(
+      { id: user.id },
+      process.env.JWT_SECRET as string,
+      { expiresIn: "7d" }
+    );
+
+    // // 🍪 6. Cookie (optional)
+    // res.cookie("token", token, {
+    //   httpOnly: true,
+    //   secure: true,
+    //   sameSite: "strict",
+    // });
+
+    // ✅ 7. Response
+     res.status(201).json({
+      message: "User registered successfully",
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+      },
+      token,
+    });
+
+  } catch (error) {
+    console.error("Register error:", error);
+     res.status(500).json({
+      message: "Internal server error",
+    });
+  }
+};

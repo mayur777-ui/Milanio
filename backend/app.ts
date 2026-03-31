@@ -6,7 +6,7 @@ import { config } from 'dotenv';
 import userRouter from './routes/user.routes';
 config();
 
-
+console.log(process.env.FRONTEND_URL)
 app.use(cors({                     
   origin: process.env.FRONTEND_URL,  //cors origin for secure connection 
   credentials: true
