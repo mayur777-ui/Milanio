@@ -73,11 +73,13 @@ export default function Register({ handleShow }: { handleShow: () => void }) {
       //     headers: { "Content-Type": "application/json" },
       //   }
       // );
-      let res = await UserService.ReqOtp(input);
+      let res = await UserService.register(input);
       const email = input.email;
-      if (res.status === 200) {
+      if (res.status === 201) {
         // console.log("Login successful:", res.data);
-        router.push(`/VerifyOtp/${email}`);
+        // router.push(`/VerifyOtp/${email}`);
+        localStorage.setItem('adminToken', res.data.token);
+        router.replace("/Loby");
         setInput({ name:"",email: "", password: "" });
     }
     } catch (err) {

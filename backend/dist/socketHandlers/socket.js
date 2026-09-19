@@ -13,7 +13,7 @@ const server = (0, http_1.createServer)(app);
 exports.server = server;
 const io = new socket_io_1.Server(server, {
     cors: {
-        origin: "http://localhost:3000",
+        origin: process.env.FRONTEND_URL,
         methods: ["GET", "POST"],
         credentials: true,
     },

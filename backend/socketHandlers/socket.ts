@@ -1,8 +1,11 @@
 import express from "express";
 import { createServer } from "http";
 import { DisconnectReason, Server } from "socket.io";
+import dotenv from 'dotenv'
+dotenv.config()
 const app = express();
 const server = createServer(app);
+console.log(process.env.FRONTEND_URL)
 const io = new Server(server, {
   cors: {
     origin: process.env.FRONTEND_URL,

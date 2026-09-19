@@ -79,12 +79,13 @@ const [user, setUser] = useState<{name: string; email: string} | null>(null);
   // to join room
   const JoinRoom = async () => {
     setIsCreating(true);
-    let res = await fetch("http://localhost:8000/getRoomId", {
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
-    let data = await res.json();
+    // let res = await fetch("http://localhost:8000/getRoomId", {
+    //   headers: {
+    //     "Content-Type": "application/json",
+    //   },
+    // });
+    let res = await UserService.getRoomId();
+    let data = await res.data;
     let rmid = data.roomId as string;
     // console.log(rmid);
     setRoomid(rmid);

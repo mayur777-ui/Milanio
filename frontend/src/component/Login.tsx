@@ -63,9 +63,10 @@ export default function Login({ handleShow }: { handleShow: () => void }) {
       //   }
       // );
       let res = await UserService.Login({email: input.email,password: input.password});
-      localStorage.setItem('adminToken', res.data.token);
+      
       if (res.status === 200) {
         // console.log("Login successful:", res.data);
+        localStorage.setItem('adminToken', res.data.token);
         router.replace("/Loby");
         setInput({ email: "", password: "" });
     }

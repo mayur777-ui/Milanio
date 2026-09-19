@@ -1,3 +1,4 @@
+'use client'
 import VerifyOtp from "@/component/VerifyOtp";
 
 export default async function Page({
