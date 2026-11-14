@@ -1,8 +1,10 @@
 class PeerService {
-  // peer: RTCPeerConnection;
   peers: Map<string, RTCPeerConnection>;
+  private iceCandidateQueues: Map<string, RTCIceCandidateInit[]>;
+
   constructor() {
     this.peers = new Map();
+    this.iceCandidateQueues = new Map();
   }
 
   createPeerConnection(remoteUserId: string) {
@@ -32,37 +34,39 @@ class PeerService {
   removePeer(remoteUserId: string) {
     const peer = this.peers.get(remoteUserId);
     if (peer) {
-      peer.getSenders().forEach((sender)=>{
-        try{
+      peer.getSenders().forEach((sender) => {
+        try {
           peer.removeTrack(sender);
-        }catch(err){
+        } catch (err) {
           console.warn(`Failed to remove track from ${remoteUserId}:`, err);
         }
-      })
-     
-       peer.onicecandidate = null;
-    peer.ontrack = null;
-    peer.onsignalingstatechange = null;
-    peer.onconnectionstatechange = null;
-     peer.close();
-    this.peers.delete(remoteUserId);
+      });
+
+      peer.onicecandidate = null;
+      peer.ontrack = null;
+      peer.onsignalingstatechange = null;
+      peer.onconnectionstatechange = null;
+      peer.close();
+      this.peers.delete(remoteUserId);
+      this.iceCandidateQueues.delete(remoteUserId);
     }
   }
 
   addTrack(peer: RTCPeerConnection, stream: MediaStream) {
-    if (peer.signalingState === 'closed') {
-    console.error('Cannot add track: Peer connection is closed');
-    return;
-  }
-    stream.getTracks().forEach((track) => {
-      const existingSender = peer.getSenders().find(sender => 
-      sender.track === track
-    );
-    if(!existingSender){
-      peer.addTrack(track, stream);
+    if (peer.signalingState === "closed") {
+      console.error("Cannot add track: Peer connection is closed");
+      return;
     }
+    stream.getTracks().forEach((track) => {
+      const existingSender = peer
+        .getSenders()
+        .find((sender) => sender.track === track);
+      if (!existingSender) {
+        peer.addTrack(track, stream);
+      }
     });
   }
+
   async getOffer(remoteUserId: string): Promise<RTCSessionDescriptionInit> {
     const peer = this.getPeer(remoteUserId);
     if (peer) {
@@ -83,21 +87,50 @@ class PeerService {
     throw new Error("Peer connection not initialized");
   }
 
+  // 🛡️ RFC 8829: Set remote session description AND drain any queued candidates
   async SetRemoteDescription(
     remoteUserId: string,
-    ans: RTCSessionDescriptionInit
+    desc: RTCSessionDescriptionInit
   ): Promise<void> {
-    console.log("it's called ");
     const peer = this.getPeer(remoteUserId);
-    if (peer) {
-      await peer.setRemoteDescription(new RTCSessionDescription(ans));
+    if (!peer) {
+      console.warn(`Cannot set remote description: peer ${remoteUserId} not found`);
+      return;
     }
+
+    await peer.setRemoteDescription(new RTCSessionDescription(desc));
+
+    //Drain all buffered ICE candidates that arrived before remoteDescription was set
+    const queued = this.iceCandidateQueues.get(remoteUserId) || [];
+    if (queued.length > 0) {
+      while (queued.length > 0) {
+        const candidate = queued.shift()!;
+        try {
+          await peer.addIceCandidate(new RTCIceCandidate(candidate));
+        } catch (err) {
+          console.warn(`Failed to apply queued ICE candidate for ${remoteUserId}:`, err);
+        }
+      }
+    }
+    this.iceCandidateQueues.delete(remoteUserId);
   }
 
-  async addIceCandidate(remoteUserId: string, candidate: RTCIceCandidate) {
+  //RFC 8829: Buffer candidate if remoteDescription is not yet set; apply immediately if ready
+  async addIceCandidate(remoteUserId: string, candidate: RTCIceCandidateInit) {
+    if (!candidate) return;
     const peer = this.getPeer(remoteUserId);
-    if (peer) {
+
+    if (!peer || !peer.remoteDescription) {
+      const queue = this.iceCandidateQueues.get(remoteUserId) || [];
+      queue.push(candidate);
+      this.iceCandidateQueues.set(remoteUserId, queue);
+      return;
+    }
+
+    try {
       await peer.addIceCandidate(new RTCIceCandidate(candidate));
+    } catch (err) {
+      console.warn(`Failed to add ICE candidate for ${remoteUserId}:`, err);
     }
   }
 
@@ -106,18 +139,19 @@ class PeerService {
   }
 
   clearAll() {
-  this.peers.forEach((peer, remoteUserId) => {
-    peer.getSenders().forEach((sender)=>{
-      try {
+    this.peers.forEach((peer, remoteUserId) => {
+      peer.getSenders().forEach((sender) => {
+        try {
           peer.removeTrack(sender);
         } catch (err) {
           console.warn(`Failed to remove track from ${remoteUserId}:`, err);
         }
+      });
+      peer.close();
     });
-     peer.close();
-  });
-  this.peers.clear();
-}
+    this.peers.clear();
+    this.iceCandidateQueues.clear();
+  }
 }
 
 export default new PeerService();

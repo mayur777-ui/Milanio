@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Production Builds & Output
+dist/
+backend/dist/
+.next/
+frontend/.next/
+out/
+build/
+
+# Environment Variables
+.env
+.env.*
+*.env
+backend/.env*
+frontend/.env*
+# Cache, Diagnostics & Local Memory
+.codebase-memory/
+*.tsbuildinfo
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+

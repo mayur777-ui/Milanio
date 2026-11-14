@@ -1,11 +1,14 @@
 import express from "express";
 import { createServer } from "http";
 import { DisconnectReason, Server } from "socket.io";
-import dotenv from 'dotenv'
-dotenv.config()
+import dotenv from 'dotenv';
+import jwt from "jsonwebtoken";
+dotenv.config();
+
 const app = express();
 const server = createServer(app);
-console.log(process.env.FRONTEND_URL)
+console.log(process.env.FRONTEND_URL);
+
 const io = new Server(server, {
   cors: {
     origin: process.env.FRONTEND_URL,
@@ -13,16 +16,42 @@ const io = new Server(server, {
     credentials: true,
   },
 });
+
+// 🛡️ Authenticate socket connection during initial HTTP upgrade handshake
+io.use((socket, next) => {
+  const token =
+    socket.handshake.auth?.token ||
+    (socket.handshake.headers?.authorization?.split(" ")[1] as string | undefined);
+
+  if (!token) {
+    return next(new Error("Authentication required: missing token"));
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { id: string; name?: string };
+    socket.data.userId = decoded.id;
+    socket.data.userName = decoded.name || "Participant";
+    next();
+  } catch (err) {
+    console.warn("Socket handshake JWT rejected:", err);
+    return next(new Error("Authentication failed: invalid token"));
+  }
+});
+
 const userInROOM = new Map<string, Set<string>>();
 const pendingRoomDeletion = new Map<string, NodeJS.Timeout>();
 const pendingUserCleanup = new Map<string, NodeJS.Timeout>();
 const roomInitiator = new Map<string, string>();
 const userSocketMap = new Map<string, string>();
 const mapRoomTouserId = new Map<string, string>();
+const userNames = new Map<string, string>();
 const alreadyLeaveUser = new Set<string>();
+
 io.on("connection", (socket) => {
-  console.log(`user ${socket.id} connected`);
-  const userId = socket.handshake.query.userId as string;
+  const userId = socket.data.userId as string;
+  const userName = (socket.data.userName as string) || "Participant";
+  userNames.set(userId, userName);
+  console.log(`user ${userId} (${userName}) connected on socket ${socket.id}`);
   userSocketMap.set(userId, socket.id);
   // console.log('this userid ', userId);
   socket.on("create:room", ({ roomId }: { roomId: string }) => {
@@ -35,17 +64,17 @@ io.on("connection", (socket) => {
     if (!existingSocketId || existingSocketId !== socket.id) {
       userSocketMap.set(userId, socket.id);
     }
-    userInROOM.set(roomId, new Set([userId]));
-    roomInitiator.set(roomId, userId);
-    mapRoomTouserId.set(userId, roomId);
-    socket.join(roomId);
+    userInROOM.set(roomId, new Set([userId])); //see: new Set(iterable) not single value ok and also can't use string why because 423j9hr291 then {"4","2", ''...}thing would like this that's why arr there 
+    roomInitiator.set(roomId, userId); //this roomInitiator->userid
+    mapRoomTouserId.set(userId, roomId); //userId -> roomId;
+    socket.join(roomId); //actually join of a room name roomId;
     socket.emit("room:created", {
       roomId: roomId,
       message: "Room created successfully",
       userId: userId,
       socketid: socket.id,
-    });
-    console.log(userInROOM);
+    }); //emit it self that room:created 
+    // console.log(userInROOM);
   });
   socket.on("room:validate", ({ roomid, userDetails }: { roomid: string, userDetails:{name: string; email: string}}) => {
     console.log("validating room by user iD", userId);
@@ -103,10 +132,13 @@ io.on("connection", (socket) => {
       io.to(initatorSocket).emit("incomming:join-request", {
         requesterId: userId,
         roomId: roomid,
-        userDetails: userDetails
+        userDetails: {
+          name: userName,
+          email: userDetails?.email || "",
+        },
       });
       console.log(
-        `📨 Sent join request from ${userId} ➝ to initiator ${initator}`
+        `📨 Sent join request from ${userName} (${userId}) ➝ to initiator ${initator}`
       );
     }
   });
@@ -157,10 +189,14 @@ io.on("connection", (socket) => {
       }
       const otherSocketIds = Array.from(roomUsers)
         .filter((user) => user !== ownUserId)
-        .map((userId) => {
-          let RemotesocketId = userSocketMap.get(userId);
+        .map((u) => {
+          let RemotesocketId = userSocketMap.get(u);
           if (!RemotesocketId) return;
-          return { userId, RemotesocketId };
+          return {
+            userId: u,
+            RemotesocketId,
+            name: userNames.get(u) || "Participant",
+          };
         })
         .filter(Boolean);
       // console.log(`📞 Data being sent:`, {
@@ -182,49 +218,52 @@ io.on("connection", (socket) => {
 
   socket.on(
     "webrtc:offer",
-    ({ requesterId, targetuserId, offer}) => {
+    ({ targetuserId, offer }: { requesterId?: string; targetuserId: string; offer: any }) => {
       console.log(
-        `📞 WebRTC offer from ${requesterId} to ${targetuserId}:`,
+        `📞 WebRTC offer from ${userId} to ${targetuserId}:`,
         offer
       );
       const targetSocketId = userSocketMap.get(targetuserId)!;
-      socket
-        .to(targetSocketId)
-        .emit("webrtc:shared", {requesterId, offer });
+      if (targetSocketId) {
+        socket
+          .to(targetSocketId)
+          .emit("webrtc:shared", { requesterId: userId, offer });
+      }
     }
   );
 
-  socket.on("send:ans", ({to: requesterId, ans }) => {
-    // console.log(`📞 Sending WebRTC answer to ${to} from ${socket.id}:`, ans);
-    
+  socket.on("send:ans", ({ to: requesterId, ans }) => {
     const toSocketId = userSocketMap.get(requesterId)!;
-    console.log("sending ans to", userId, "ans is",requesterId);
-    socket.to(toSocketId).emit("webrtc:getAns", {
+    console.log("sending ans from", userId, "to", requesterId);
+    if (toSocketId) {
+      socket.to(toSocketId).emit("webrtc:getAns", {
         ans,
         remoteUserId: userId,
       });
+    }
   });
 
-  // socket.on('iceshare:start',({to, requesterId, remoteUserId})=>{
-  //     console.log(`🧊 Starting ICE sharing from ${requesterId} to ${to} for remote user ${remoteUserId}`);
-  //     socket.emit('ice-start:sharing', {to, requesterId, remoteUserId});
-  // })
-
-  socket.on("icecandidate-check", ({ to, candidate, requesterId }) => {
-    console.log(`🧊 ICE candidate from ${requesterId} to ${to}:`, candidate);
+  socket.on("icecandidate-check", ({ to, candidate }) => {
+    console.log(`🧊 ICE candidate from ${userId} to ${to}:`, candidate);
     const toSocketId = userSocketMap.get(to)!;
-    socket
-      .to(toSocketId)
-      .emit("checking-iceCandidate", { candidate, remoteUserId: requesterId });
+    if (toSocketId) {
+      socket
+        .to(toSocketId)
+        .emit("checking-iceCandidate", { candidate, remoteUserId: userId });
+    }
   });
 
-  socket.on("start-chat", ({ roomId, message, OwnuserId }) => {
-    console.log(`💬 Starting chat in room ${roomId} with message:`, message);
-    io.to(roomId).emit("chat:started", { message, senderid: OwnuserId });
+  socket.on("start-chat", ({ roomId, message }) => {
+    console.log(`💬 Starting chat in room ${roomId} by ${userName} (${userId})`);
+    io.to(roomId).emit("chat:started", {
+      message,
+      senderid: userId,
+      senderName: userName,
+    });
   });
 
-  socket.on("leave:room", ({ roomId, OwnuserId }) => {
-    console.log(`👋 User ${OwnuserId} is leaving room ${roomId}`);
+  socket.on("leave:room", ({ roomId }: { roomId: string }) => {
+    console.log(`👋 User ${userName} (${userId}) is leaving room ${roomId}`);
     if (!userInROOM.has(roomId)) {
       console.log(`❌ Room ${roomId} does not exist.`);
       return;
@@ -235,28 +274,44 @@ io.on("connection", (socket) => {
       return;
     }
 
-    if(roomInitiator.get(roomId) === OwnuserId) {
-      io.to(roomId).emit("room-closed", {
-        message: "Room closed by creator.",
-      });
-      io.in(roomId).socketsLeave(roomId);
-      userInROOM.delete(roomId);
-      roomInitiator.delete(roomId);
-      mapRoomTouserId.forEach((value, key) => {
-        if (value === roomId) {
-          mapRoomTouserId.delete(key);
-        }
-        // console.log(`💣 Room ${roomId} force closed by initiator ${OwnuserId}`);
-      });
-    }else{
-    if (roomUsers.has(OwnuserId)) {
-      roomUsers.delete(OwnuserId);
-      mapRoomTouserId.delete(OwnuserId);
+    if (roomInitiator.get(roomId) === userId) {
+      roomUsers.delete(userId);
+      mapRoomTouserId.delete(userId);
       socket.leave(roomId);
-      alreadyLeaveUser.add(OwnuserId);
+      alreadyLeaveUser.add(userId);
+
+      if (roomUsers.size > 0) {
+        const nextHostId = Array.from(roomUsers)[0];
+        roomInitiator.set(roomId, nextHostId);
+        const nextHostName = userNames.get(nextHostId) || "Participant";
+        console.log(`👑 Host migrated in room ${roomId} from ${userId} to ${nextHostId} (${nextHostName})`);
+        io.to(roomId).emit("host:promoted", {
+          newHostId: nextHostId,
+          newHostName: nextHostName,
+        });
+      } else {
+        console.log(`🚪 Last user (host) left room ${roomId}. Closing room.`);
+        io.to(roomId).emit("room-closed", {
+          message: "Room closed.",
+        });
+        io.in(roomId).socketsLeave(roomId);
+        userInROOM.delete(roomId);
+        roomInitiator.delete(roomId);
+        mapRoomTouserId.forEach((value, key) => {
+          if (value === roomId) {
+            mapRoomTouserId.delete(key);
+          }
+        });
+      }
+    } else {
+      if (roomUsers.has(userId)) {
+        roomUsers.delete(userId);
+        mapRoomTouserId.delete(userId);
+        socket.leave(roomId);
+        alreadyLeaveUser.add(userId);
+      }
     }
-    }
-    if(userInROOM.get(roomId)?.size === 0) {
+    if (userInROOM.get(roomId)?.size === 0) {
       userInROOM.delete(roomId);
       roomInitiator.delete(roomId);
       mapRoomTouserId.forEach((value, key) => {
@@ -265,19 +320,21 @@ io.on("connection", (socket) => {
         }
       });
     }
-    socket.to(roomId).emit("user:left", { leaver: OwnuserId, roomId });
+    socket.to(roomId).emit("user:left", {
+      leaver: userId,
+      leaverName: userName,
+      roomId,
+    });
   });
 
 
-  socket.on('mic:toggle', ({userId, micOn, roomId})=>{
-    socket.to(roomId).emit("peer:mic-toggled",{ userId, micOn });
-  })
+  socket.on('mic:toggle', ({ micOn, roomId }: { userId?: string; micOn: boolean; roomId: string }) => {
+    socket.to(roomId).emit("peer:mic-toggled", { userId, micOn });
+  });
 
-
-  
-  socket.on('camera:toggle', ({userId, cameraOn, roomId})=>{
-    socket.to(roomId).emit("peer:camera-toggled",{ userId, cameraOn });
-  })
+  socket.on('camera:toggle', ({ cameraOn, roomId }: { userId?: string; cameraOn: boolean; roomId: string }) => {
+    socket.to(roomId).emit("peer:camera-toggled", { userId, cameraOn });
+  });
 
 
   socket.on("disconnect", (reason: DisconnectReason) => {
@@ -296,16 +353,36 @@ io.on("connection", (socket) => {
         if (isInitiator) {
           const timeOut = setTimeout(() => {
             if (userInROOM.get(roomId)?.has(userId) === false) {
-              userInROOM.delete(roomId);
-              roomInitiator.delete(roomId);
-              mapRoomTouserId.delete(userId);
-              io.to(roomId).emit("room-closed", {
-                message: "Room closed by creator.",
-              });
-              io.in(roomId).socketsLeave(roomId);
-              console.log(
-                `💣 Room ${roomId} force closed (initiator didn't come back)`
-              );
+              const currentUsers = userInROOM.get(roomId);
+              if (currentUsers && currentUsers.size > 0) {
+                const nextHostId = Array.from(currentUsers)[0];
+                roomInitiator.set(roomId, nextHostId);
+                const nextHostName = userNames.get(nextHostId) || "Participant";
+                mapRoomTouserId.delete(userId);
+                console.log(
+                  `👑 Host disconnect timeout in room ${roomId}. Promoted ${nextHostId} (${nextHostName}) to host.`
+                );
+                io.to(roomId).emit("host:promoted", {
+                  newHostId: nextHostId,
+                  newHostName: nextHostName,
+                });
+                io.to(roomId).emit("user:left", {
+                  leaver: userId,
+                  leaverName: userName,
+                  roomId,
+                });
+              } else {
+                userInROOM.delete(roomId);
+                roomInitiator.delete(roomId);
+                mapRoomTouserId.delete(userId);
+                io.to(roomId).emit("room-closed", {
+                  message: "Room closed by creator.",
+                });
+                io.in(roomId).socketsLeave(roomId);
+                console.log(
+                  `💣 Room ${roomId} force closed (initiator didn't come back and no participants remain)`
+                );
+              }
             }
             pendingRoomDeletion.delete(roomId);
           }, 10000);
@@ -319,6 +396,11 @@ io.on("connection", (socket) => {
               console.log(
                 `🗑️ User ${userId} removed from room ${roomId} after timeout.`
               );
+              io.to(roomId).emit("user:left", {
+                leaver: userId,
+                leaverName: userName,
+                roomId,
+              });
             }
             pendingUserCleanup.delete(userId);
           }, 10000);

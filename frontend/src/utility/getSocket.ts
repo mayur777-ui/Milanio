@@ -1,4 +1,3 @@
-import { globalAgent } from "http";
 import { io, Socket } from "socket.io-client";
 
 // Global socket instance - will persist across all component renders and route changes
@@ -18,26 +17,31 @@ function getBaseUrl() {
   }
 }
 
-export const getSocket = (userid: string): Socket | null => {
+export const getSocket = (userid?: string | null): Socket | null => {
   // If we already have a connected socket, return it immediately
-  if (globalSocket){
+  if (globalSocket) {
     return globalSocket;
   }
-    globalSocket = io(getBaseUrl(), {
-      withCredentials: true,
-      autoConnect: true,
-      query: {
-        userId: userid,
-      },
-    });
-    // Add event listeners only once
-    globalSocket.on("connect", () => {
-      console.log("Global socket connected with ID:", globalSocket?.id);
-    });
+  const token = typeof window !== "undefined" ? localStorage.getItem("adminToken") : null;
 
-    globalSocket.on("disconnect", (reason) => {
-      console.log("Global socket disconnected:", reason);
-    });
+  globalSocket = io(getBaseUrl(), {
+    withCredentials: true,
+    autoConnect: true,
+    auth: {
+      token: token || "",
+    },
+    query: {
+      userId: userid || "",
+    },
+  });
+  // Add event listeners only once
+  globalSocket.on("connect", () => {
+    console.log("Global socket connected with ID:", globalSocket?.id);
+  });
+
+  globalSocket.on("disconnect", (reason) => {
+    console.log("Global socket disconnected:", reason);
+  });
   return globalSocket;
 };
 

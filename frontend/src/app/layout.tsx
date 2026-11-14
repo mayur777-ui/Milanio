@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/context/themeContext";
-import { Inter } from 'next/font/google';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -46,17 +45,21 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <head>
-        {/* Prevent FOUC: inline script to set theme before hydration */}
+        {/* Prevent FOUC: inline script to set theme before hydration with OS preference fallback */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
               (function () {
                 try {
-                  const theme = localStorage.getItem('theme');
+                  const saved = localStorage.getItem('theme');
+                  const systemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+                  const theme = saved || (systemDark ? 'dark' : 'light');
                   if (theme === 'dark') {
                     document.documentElement.classList.add('dark');
+                    document.documentElement.classList.remove('light');
                   } else {
                     document.documentElement.classList.remove('dark');
+                    document.documentElement.classList.add('light');
                   }
                 } catch (_) {}
               })();
@@ -65,7 +68,7 @@ export default function RootLayout({
         />
         <link rel="icon" href="/logo.png" type="image/png" />
       </head>
-      <body className="w-full h-full relative dark:bg-zinc-900 bg-gray-50">
+      <body className="w-full h-full relative bg-slate-50 dark:bg-[#09090b] text-zinc-900 dark:text-zinc-100 antialiased">
         <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>

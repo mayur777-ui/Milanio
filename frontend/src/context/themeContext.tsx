@@ -7,7 +7,7 @@ import {
 } from "react";
 
 interface ThemeContextType {
-  theme: string | null;
+  theme: 'light' | 'dark';
   toggleTheme: () => void;
 }
 
@@ -15,21 +15,53 @@ const ThemeContext = createContext<ThemeContextType | null>(null);
 
 export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
   const [theme, setTheme] = useState<'light' | 'dark'>("light");
+
+  const applyTheme = (t: 'light' | 'dark') => {
+    if (t === 'dark') {
+      document.documentElement.classList.add('dark');
+      document.documentElement.classList.remove('light');
+    } else {
+      document.documentElement.classList.remove('dark');
+      document.documentElement.classList.add('light');
+    }
+  };
+
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme") as 'light' | 'dark' | null;
-   const initialTheme = savedTheme ?? "light";
+    let initialTheme: 'light' | 'dark' = 'light';
+    if (savedTheme === 'dark' || savedTheme === 'light') {
+      initialTheme = savedTheme;
+    } else if (
+      typeof window !== "undefined" &&
+      window.matchMedia &&
+      window.matchMedia("(prefers-color-scheme: dark)").matches
+    ) {
+      initialTheme = 'dark';
+    }
+
     setTheme(initialTheme);
-    document.documentElement.classList.add(initialTheme);
-    if(!savedTheme){ 
+    applyTheme(initialTheme);
+    if (!savedTheme) {
       localStorage.setItem("theme", initialTheme);
     }
+
+    // Cross-tab theme synchronization via Web Storage API
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === "theme" && (e.newValue === "light" || e.newValue === "dark")) {
+        setTheme(e.newValue);
+        applyTheme(e.newValue);
+      }
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
   }, []);
+
   const toggleTheme = () => {
     const newTheme = theme === "light" ? "dark" : "light";
     setTheme(newTheme);
     localStorage.setItem("theme", newTheme);
-    document.documentElement.classList.remove(theme);
-    document.documentElement.classList.add(newTheme);
+    applyTheme(newTheme);
   };
 
   return (

@@ -65,8 +65,8 @@ export const Login = async(req: Request, res: Response) =>{
             res.status(401).json({error: 'Invalid password'});
             return;
         }
-        const token = jwt.sign({id: user.id}, process.env.JWT_SECRET!, {
-            expiresIn: '1d'
+        const token = jwt.sign({ id: user.id, name: user.name }, process.env.JWT_SECRET!, {
+            expiresIn: '7d'
         });
         res.status(200).json({message: 'Login successful', user: user, token: token});
     }catch(err){
@@ -206,12 +206,14 @@ export const Registerdirect = async (req: Request, res: Response) => {
       res.status(400).json({
         message: "All fields are required",
       });
+      return;
     }
 
     if (password.length < 8) {
       res.status(400).json({
-        message: "Password must be at least 6 characters",
+        message: "Password must be at least 8 characters",
       });
+      return;
     }
 
     const normalizedEmail = email.toLowerCase();
@@ -222,9 +224,10 @@ export const Registerdirect = async (req: Request, res: Response) => {
     });
 
     if (existingUser) {
-       res.status(400).json({
+      res.status(400).json({
         message: "User already exists",
       });
+      return;
     }
 
     // 🔐 3. Hash password
@@ -241,7 +244,7 @@ export const Registerdirect = async (req: Request, res: Response) => {
 
     // 🔑 5. Generate JWT
     const token = jwt.sign(
-      { id: user.id },
+      { id: user.id, name: user.name },
       process.env.JWT_SECRET as string,
       { expiresIn: "7d" }
     );
