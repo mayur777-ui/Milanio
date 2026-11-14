@@ -1,33 +1,47 @@
 "use client";
 
-import React, { useState } from "react";
-import Lottie from "lottie-react";
-import loginAnimation from "../img/loginAuth.json";
-import { X, Eye, EyeClosed,Loader2  } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { X, Eye, EyeClosed, Loader2, AlertCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import axios from "axios";
-import { UserService } from '@/apis/user.api'
-export default function Login({ handleShow }: { handleShow: () => void }) {
-  let router = useRouter();
-  let [input, setInput] = useState<{ email: string; password: string }>({
+import { UserService } from "@/apis/user.api";
+
+interface LoginProps {
+  handleShow: () => void;
+  onSwitchToRegister?: () => void;
+}
+
+export default function Login({ handleShow, onSwitchToRegister }: LoginProps) {
+  const router = useRouter();
+  const [input, setInput] = useState<{ email: string; password: string }>({
     email: "",
     password: "",
   });
-  let [errors, setErrors] = useState<{
+  const [errors, setErrors] = useState<{
     email?: string;
     password?: string;
     both?: string;
   }>();
   const [showpass, setShowPass] = useState<boolean>(false);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        handleShow();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleShow]);
+
   const handleShowPass = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
     setShowPass((prev) => !prev);
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const name = e.target.name;
-    const value = e.target.value;
+    const { name, value } = e.target;
     setInput((prev) => ({
       ...prev,
       [name]: value,
@@ -35,136 +49,166 @@ export default function Login({ handleShow }: { handleShow: () => void }) {
     setErrors(undefined);
   };
 
-  const handleSubmit = async (e: React.MouseEvent<HTMLButtonElement>) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.email && !input.password) {
-      setErrors({ both: "Both fields are required" });
+      setErrors({ both: "Both fields are required." });
       return;
     }
     if (!input.email) {
-      setErrors({ email: "Email is required" });
+      setErrors({ email: "Email is required." });
+      return;
+    }
+    if (!input.password) {
+      setErrors({ password: "Password is required." });
       return;
     }
 
-    if (!input.password) {
-      setErrors({ password: "Password is required" });
-      return;
-    }
     try {
-        setLoading(true);
-      // let res = await axios.post(
-      //   "/api/auth/login",
-      //   {
-      //     email: input.email,
-      //     password: input.password,
-      //   },
-      //   {
-      //     headers: { "Content-Type": "application/json" },
-      //   }
-      // );
-      let res = await UserService.Login({email: input.email,password: input.password});
-      
+      setLoading(true);
+      const res = await UserService.Login({
+        email: input.email,
+        password: input.password,
+      });
+
       if (res.status === 200) {
-        // console.log("Login successful:", res.data);
-        localStorage.setItem('adminToken', res.data.token);
+        localStorage.setItem("adminToken", res.data.token);
         router.replace("/Loby");
         setInput({ email: "", password: "" });
-    }
+      }
     } catch (err) {
       if (axios.isAxiosError(err)) {
-    const status = err.response?.status;
-
-    if (status === 404 || status === 401 || status === 500) {
-      setErrors({ both: err.response?.data?.error || "Unexpected error" });
-    } else {
-      setErrors({ both: "Something went wrong. Try again later." });
-    }
-  } else {
-    console.error("Unknown login error:", err);
-    setErrors({ both: "Unexpected error occurred." });
-  }
-    }finally{
-        setLoading(false);
+        const status = err.response?.status;
+        if (status === 404 || status === 401 || status === 500) {
+          setErrors({ both: err.response?.data?.error || "Invalid email or password." });
+        } else {
+          setErrors({ both: "Unable to sign in. Please try again." });
+        }
+      } else {
+        setErrors({ both: "An unexpected error occurred." });
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <>
-     {loading && (
-      <div className="fixed inset-0 bg-black/30 bg-opacity-30 z-50 flex items-center justify-center">
-        <Loader2 className="animate-spin text-white w-10 h-10" />
-      </div>
-     )}
-      {errors && (
-        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 w-[90%] sm:w-[80%] md:w-[60%] lg:w-[40%] bg-red-500 text-white text-sm font-medium px-4 py-3 rounded-lg shadow-md">
-          {errors.both && <p>{errors.both}</p>}
-          {errors.email && <p>{errors.email}</p>}
-          {errors.password && <p>{errors.password}</p>}
-        </div>
-      )}
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="login-dialog-title"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          handleShow();
+        }
+      }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+    >
+      <div className="relative w-full max-w-md bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl p-6 sm:p-8 flex flex-col text-zinc-900 dark:text-zinc-100">
+        {/* Close Button */}
+        <button
+          onClick={handleShow}
+          aria-label="Close dialog"
+          className="absolute top-4 right-4 p-2 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800 transition cursor-pointer"
+        >
+          <X className="w-5 h-5" />
+        </button>
 
-      <div className="flex inset-0 absolute items-center justify-center bg-gradient-to-br from-white/10 to-zinc-100 dark:from-zinc-900 dark:to-zinc-800 backdrop-blur-md">
-        <div className="relative w-[90%] max-w-5xl min-h-[32rem] max-h-[95vh] overflow-auto p-6 md:p-10 rounded-2xl bg-white/30 dark:bg-zinc-900/60 backdrop-blur-xl border border-white/20 dark:border-zinc-700 shadow-lg flex flex-col md:flex-row items-center justify-between transition-all duration-300">
-
-          <button
-            className=" absolute top-5 text-zinc-950 right-7 cursor-pointer"
-            onClick={handleShow}
+        {/* Modal Header */}
+        <div className="mb-6">
+          <div className="w-9 h-9 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-950 flex items-center justify-center font-bold text-sm mb-3 shadow-sm">
+            M
+          </div>
+          <h2
+            id="login-dialog-title"
+            className="text-xl sm:text-2xl font-bold tracking-tight text-zinc-900 dark:text-white"
           >
-            <X />
-          </button>
-          {/* Left: Image */}
-          <div className="w-full md:w-1/2 flex justify-center items-center mb-6 md:mb-0">
-            <div className="p-6 rounded-xl bg-[#f4f4f4] dark:bg-zinc-700 shadow-inner dark:shadow-[inset_4px_4px_8px_#1c1c1c,inset_-4px_-4px_8px_#2c2c2c]">
-              <Lottie
-                animationData={loginAnimation}
-                loop={true}
-                autoplay={true}
+            Welcome back
+          </h2>
+          <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+            Sign in to start or join your video meeting.
+          </p>
+        </div>
+
+        {/* Error Alert */}
+        {(errors?.both || errors?.email || errors?.password) && (
+          <div className="mb-4 flex items-center gap-2.5 p-3 rounded-xl bg-red-500/10 border border-red-500/25 text-red-600 dark:text-red-400 text-xs">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{errors.both || errors.email || errors.password}</span>
+          </div>
+        )}
+
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
+              Email address
+            </label>
+            <input
+              type="email"
+              name="email"
+              placeholder="you@domain.com"
+              onChange={handleChange}
+              value={input.email}
+              autoFocus
+              className="w-full px-3.5 py-2.5 rounded-xl bg-zinc-50 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700/80 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition"
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
+              Password
+            </label>
+            <div className="relative">
+              <input
+                type={showpass ? "text" : "password"}
+                name="password"
+                placeholder="••••••••"
+                value={input.password}
+                onChange={handleChange}
+                className="w-full px-3.5 py-2.5 pr-10 rounded-xl bg-zinc-50 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700/80 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition"
               />
+              <button
+                type="button"
+                onClick={handleShowPass}
+                aria-label={showpass ? "Hide password" : "Show password"}
+                className="absolute top-1/2 -translate-y-1/2 right-3 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition cursor-pointer"
+              >
+                {showpass ? <EyeClosed className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
             </div>
           </div>
 
-          {/* Right: Form */}
-          <div className="w-full md:w-1/2 px-2 md:px-6">
-            <h2 className="text-3xl font-bold text-zinc-800 dark:text-zinc-200 mb-6 text-center md:text-left">
-              Welcome Back
-            </h2>
-            <form className="flex flex-col gap-4">
-              <input
-                type="email"
-                placeholder="Email"
-                name="email"
-                onChange={handleChange}
-                value={input.email}
-                className="p-4 rounded-xl bg-[#e0e0e0] dark:bg-zinc-700 shadow-[inset_4px_4px_8px_#bebebe,inset_-4px_-4px_8px_#ffffff] dark:shadow-[inset_4px_4px_8px_#1c1c1c,inset_-4px_-4px_8px_#2c2c2c] focus:outline-none text-zinc-800 dark:text-white"
-              />
-              <div className="relative">
-                <input
-                  type={showpass ? "text" : "password"}
-                  placeholder="Password"
-                  name="password"
-                  value={input.password}
-                  onChange={handleChange}
-                  className="p-4 w-full rounded-xl bg-[#e0e0e0] dark:bg-zinc-700 shadow-[inset_4px_4px_8px_#bebebe,inset_-4px_-4px_8px_#ffffff] dark:shadow-[inset_4px_4px_8px_#1c1c1c,inset_-4px_-4px_8px_#2c2c2c] focus:outline-none text-zinc-800 dark:text-white"
-                />
-                <button
-                  type="button"
-                  onClick={handleShowPass}
-                  className="absolute top-2 right-4 text-sm text-blue-500 hover:underline mt-2"
-                >
-                  {showpass ? <Eye /> : <EyeClosed />}
-                </button>
-              </div>
-              <button
-                type="submit"
-                onClick={handleSubmit}
-                className="mt-2 bg-[#d1d9e6] dark:bg-zinc-600 text-zinc-800 dark:text-white font-semibold py-3 rounded-xl shadow-[4px_4px_8px_#bebebe,-4px_-4px_8px_#ffffff] dark:shadow-[4px_4px_8px_#1c1c1c,-4px_-4px_8px_#2c2c2c] hover:scale-105 transition-all"
-              >
-                Login
-              </button>
-            </form>
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full mt-2 py-3 bg-zinc-900 hover:bg-zinc-800 text-white dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-200 font-semibold rounded-xl text-sm transition shadow-sm disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Signing in...</span>
+              </>
+            ) : (
+              <span>Sign in</span>
+            )}
+          </button>
+        </form>
+
+        {/* Switch to Register */}
+        {onSwitchToRegister && (
+          <div className="mt-6 text-center text-xs text-zinc-500 dark:text-zinc-400">
+            Don&apos;t have an account?{" "}
+            <button
+              type="button"
+              onClick={onSwitchToRegister}
+              className="text-zinc-900 dark:text-zinc-100 font-semibold underline underline-offset-4 hover:opacity-80 transition cursor-pointer"
+            >
+              Sign up
+            </button>
           </div>
-        </div>
+        )}
       </div>
-    </>
+    </div>
   );
 }
