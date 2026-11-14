@@ -7,6 +7,11 @@
     "dev": "nodemon",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/app.js",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:studio": "prisma studio",
+    "docker:up": "docker compose -f ../docker-compose.yml up -d",
+    "docker:down": "docker compose -f ../docker-compose.yml down",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

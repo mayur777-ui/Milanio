@@ -1,3 +1,4 @@
+import './config/env';
 import express,{Request,Response} from 'express';
 import {app, io, server} from './socketHandlers/socket';
 import cors from 'cors';
@@ -26,8 +27,20 @@ app.get('/getRoomId', (req:Request, res:Response)=>{ //this route for generate r
   })
 })
 
+import { connectRedis } from './utility/RediesClient';
+
 const port = Number(process.env.PORT) || 8000;
 
-server.listen(port, () => {
-  console.log(`Server with Socket.IO listening on port ${port}`);
-});
+async function bootstrap() {
+  try {
+    await connectRedis();
+  } catch (err) {
+    console.warn('⚠️ Server starting without active Redis connectivity:', (err as Error).message);
+  }
+
+  server.listen(port, () => {
+    console.log(`Server with Socket.IO listening on port ${port}`);
+  });
+}
+
+bootstrap();
