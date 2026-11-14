@@ -5,16 +5,29 @@ import { useParams } from "next/navigation";
 import PeerService from "@/utility/Peer";
 import { useUserid } from "@/context/UserIdcontext";
 import { useRouter } from "next/navigation";
-import { PhoneCall,MicOff,Mic,CameraOff,Camera } from "lucide-react";
+import {
+  PhoneOff,
+  MicOff,
+  Mic,
+  CameraOff,
+  Camera,
+  Copy,
+  Check,
+  MessageSquare,
+  Users,
+} from "lucide-react";
 import { flushSync } from "react-dom";
 import { useRoomReload } from "@/hooks/useRoomReload";
 import Chat from "@/component/Chat";
+import VideoTile from "@/component/VideoTile";
 export default function Homepage() {
   const { socket, isConnected, socketId } = useSocket();
   const [myStream, setMyStream] = useState<MediaStream | null>(null);
   const param = useParams();
   const roomId = param.id as string;
   const [copied, setCopied] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [unreadMessages, setUnreadMessages] = useState(0);
   const [roomStatus, setRoomStatus] = useState<boolean>(false);
   const [ispending, setIspending] = useState<
   { requesterId: string; roomId: string, userDetails:{name: string; email: string} }[]
@@ -24,7 +37,32 @@ export default function Homepage() {
     new Map()
   );
 
-  const [showNotification,setShowNotification] = useState<{leaver:string, roomid:string} | null>(null);
+  const [showNotification, setShowNotification] = useState<{ leaver: string; leaverName?: string; roomid: string } | null>(null);
+  const [hostNotice, setHostNotice] = useState<string | null>(null);
+  const [localUserName, setLocalUserName] = useState<string>("You");
+
+  useEffect(() => {
+    const token = localStorage.getItem("adminToken");
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split(".")[1]));
+        if (payload?.name) setLocalUserName(payload.name);
+      } catch (_) {}
+    }
+  }, []);
+
+  const handleCloseChat = useCallback(() => {
+    setIsChatOpen(false);
+  }, []);
+
+  const handleChatMessageReceived = useCallback(() => {
+    setIsChatOpen((open) => {
+      if (!open) {
+        setUnreadMessages((prev) => prev + 1);
+      }
+      return open;
+    });
+  }, []);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(roomId).then(() => {
@@ -42,10 +80,11 @@ export default function Homepage() {
     micToggle: true
   });
   type PeerInfo = {
-    userId: string,
-    cameraOn: boolean,
-    micOn: boolean
-  }
+    userId: string;
+    name?: string;
+    cameraOn: boolean;
+    micOn: boolean;
+  };
   const [peers, setPeers] = useState<PeerInfo[]>([]);
 
   useEffect(() => {
@@ -117,8 +156,24 @@ useEffect(() => {
 
   if (!streamRef.current) {
     getStream();
+  } else {
+    const shouldStart = localStorage.getItem("webrtc:start");
+    if (shouldStart === "true" && socket && mainUserId) {
+      localStorage.removeItem("webrtc:start");
+      socket.emit("webrtc:start", { roomId, ownUserId: mainUserId });
+    }
   }
 }, [socket, roomId, mainUserId]);
+
+// Hardware teardown on unmount
+useEffect(() => {
+  return () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+  };
+}, []);
 
 
   //   useEffect(() => {
@@ -234,6 +289,7 @@ useEffect(() => {
     users: {
       userId: string;
       RemotesocketId: string;
+      name?: string;
     }[];
   };
 
@@ -246,6 +302,20 @@ useEffect(() => {
         localStorage.removeItem("just:leave");
       }
       let { ownSocketId, roomId, ownUserId, users } = data;
+
+      setPeers((prev) => {
+        const next = [...prev];
+        users.forEach((u) => {
+          const idx = next.findIndex((p) => p.userId === u.userId);
+          if (idx >= 0) {
+            next[idx] = { ...next[idx], name: u.name };
+          } else {
+            next.push({ userId: u.userId, name: u.name, cameraOn: true, micOn: true });
+          }
+        });
+        return next;
+      });
+
       await Promise.all(
         users.map(async ({ userId, RemotesocketId }) => {
           const existingPeer = PeerService.getPeer(userId);
@@ -377,7 +447,7 @@ useEffect(() => {
           return newMap;
         });
       };
-      await peer.setRemoteDescription(new RTCSessionDescription(offer));
+      await PeerService.SetRemoteDescription(requesterId, offer);
       // console.log("📦 Remote description set:", peer.remoteDescription);
       const currentStream = streamRef.current;
       console.log(currentStream);
@@ -435,10 +505,10 @@ useEffect(() => {
 }, [socket]);
 
   useEffect(() => {
-    socket?.on("checking-iceCandidate", (data) => {
-      // console.log("🧊 Receiving ICE candidate:", data);
-      const peer = PeerService.getPeer(data.remoteUserId);
-      peer?.addIceCandidate(new RTCIceCandidate(data.candidate));
+    socket?.on("checking-iceCandidate", async (data: { candidate: RTCIceCandidateInit; remoteUserId: string }) => {
+      if (data?.candidate && data?.remoteUserId) {
+        await PeerService.addIceCandidate(data.remoteUserId, data.candidate);
+      }
     });
     return () => {
       socket?.off("checking-iceCandidate");
@@ -517,8 +587,8 @@ useEffect(() => {
 
 
   useEffect(()=>{
-    socket?.on("user:left", (data)=>{
-      setShowNotification({leaver: data.leaver, roomid: data.roomId});
+    socket?.on("user:left", (data: { leaver: string; leaverName?: string; roomId: string })=>{
+      setShowNotification({leaver: data.leaver, leaverName: data.leaverName, roomid: data.roomId});
 
       // REMOVE THE STREAM FROM THE MAP
       setRemoteStreams((prev)=>{
@@ -588,170 +658,322 @@ const toggleCamera = () => {
 };
 
 
-  useEffect(()=>{
-    socket?.on('peer:mic-toggled',(data: { userId: string; micOn: boolean })=>{
-      setPeers(prev => {
-        let exist = prev.find(p => p.userId === data.userId)
-        if(exist){
-          return prev.map(peer => peer.userId === data.userId ? {...peer, micOn: data.micOn} : peer)
-        }else{
-          return [...prev, {userId: data.userId, micOn: data.micOn, cameraOn: true}]
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleMicToggle = (data: { userId: string; micOn: boolean }) => {
+      setPeers((prev) => {
+        const exist = prev.find((p) => p.userId === data.userId);
+        if (exist) {
+          return prev.map((peer) =>
+            peer.userId === data.userId ? { ...peer, micOn: data.micOn } : peer
+          );
+        } else {
+          return [...prev, { userId: data.userId, micOn: data.micOn, cameraOn: true }];
         }
-      })
-    })
-  },[socket])
+      });
+    };
 
-
-
-  useEffect(()=>{
-    socket?.on('peer:camera-toggled', (data: {userId:string,cameraOn: boolean})=>{
-      setPeers(prev => {
-        let exist  = prev.map(p => p.userId === data.userId)
-        if(exist){
-          return prev.map(peer => peer.userId === data.userId ? {...peer, cameraOn: data.cameraOn}: peer)
-        }else{
-          return [...prev, {userId: data.userId, micOn:true, cameraOn: data.cameraOn}]
+    const handleCameraToggle = (data: { userId: string; cameraOn: boolean }) => {
+      setPeers((prev) => {
+        const exist = prev.find((p) => p.userId === data.userId);
+        if (exist) {
+          return prev.map((peer) =>
+            peer.userId === data.userId ? { ...peer, cameraOn: data.cameraOn } : peer
+          );
+        } else {
+          return [...prev, { userId: data.userId, micOn: true, cameraOn: data.cameraOn }];
         }
-      })
-    })
-  })
+      });
+    };
+
+    const handleHostPromoted = (data: { newHostId: string; newHostName: string }) => {
+      if (data.newHostId === mainUserId) {
+        setHostNotice("You are now the meeting host");
+      } else {
+        setHostNotice(`${data.newHostName || "A participant"} is now the meeting host`);
+      }
+      setTimeout(() => setHostNotice(null), 5000);
+    };
+
+    socket.on("peer:mic-toggled", handleMicToggle);
+    socket.on("peer:camera-toggled", handleCameraToggle);
+    socket.on("host:promoted", handleHostPromoted);
+
+    return () => {
+      socket.off("peer:mic-toggled", handleMicToggle);
+      socket.off("peer:camera-toggled", handleCameraToggle);
+      socket.off("host:promoted", handleHostPromoted);
+    };
+  }, [socket, mainUserId]);
 
 
   return (
-    <>
-      {/* Optional chat input (currently commented out) */}
-      <div className="w-full min-h-screen bg-black flex flex-col">
+    <div className="w-full h-screen bg-zinc-950 flex overflow-hidden text-zinc-100 select-none">
+      {/* Main Video Arena */}
+      <div className="flex-1 flex flex-col relative h-full overflow-hidden">
+        {/* Toast Notification when participant leaves */}
         {showNotification && (
-          <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50">
-            {showNotification.leaver} has left the room {showNotification.roomid}
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-zinc-900/95 backdrop-blur-xl border border-zinc-800 text-zinc-200 px-4 py-2 rounded-xl shadow-2xl text-xs font-medium flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-zinc-500" />
+            <span>
+              <strong className="text-white">{showNotification.leaverName || `User ${showNotification.leaver.slice(0, 6)}`}</strong> left the meeting
+            </span>
           </div>
         )}
-        <div
-          className={`flex-1 p-4 grid ${gridClass} gap-4 place-items-center max-w-[1920px] mx-auto`}
-        >
-          {streamRef.current && (
-            <div className="relative w-full h-full max-h-[360px] sm:max-h-[480px] rounded-lg overflow-hidden shadow-lg">
-              <video
-                autoPlay
-                muted
-                playsInline
-                ref={(video) => {
-                  if (video && streamRef.current) video.srcObject = streamRef.current;
-                }}
-                className="w-full h-full object-cover bg-black"
-              />
-              {
-                !toggleStream.cameraToggle && (
-                   <div className="absolute inset-0 flex items-center justify-center bg-blue-300 bg-opacity-70 rounded-lg">
-      <div className="flex flex-col items-center space-y-2 text-white">
-        <CameraOff size={40} />
-        <span>Camera Off</span>
-      </div>
-    </div>
-                )
-              }
-              <div className="absolute bottom-2 left-2 bg-gray bg-opacity-50 text-white px-2 py-1 rounded text-sm">
-                You
-              </div>
+
+        {/* Host Promoted Toast Notification */}
+        {hostNotice && (
+          <div className="fixed top-14 left-1/2 -translate-x-1/2 z-50 bg-indigo-950/95 backdrop-blur-xl border border-indigo-700/60 text-indigo-200 px-4 py-2 rounded-xl shadow-2xl text-xs font-medium flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-indigo-400" />
+            <span>{hostNotice}</span>
+          </div>
+        )}
+
+        {/* Top Meeting Header */}
+        <header className="px-6 py-3.5 flex items-center justify-between z-20 border-b border-zinc-900/60 bg-zinc-950/40 backdrop-blur-md">
+          <div className="flex items-center gap-3">
+            <span className="font-semibold text-sm tracking-wide text-zinc-200">Milanio</span>
+            <span className="text-zinc-700">/</span>
+            <div className="flex items-center gap-2 bg-zinc-900/90 border border-zinc-800/80 px-2.5 py-1 rounded-md text-xs font-mono text-zinc-300">
+              <span>{roomId}</span>
             </div>
-            
-          )}
-          {Array.from(remoteStreams.entries()).map(([userId, stream]) => (
-            <div
-              key={userId}
-              className="relative w-full h-full max-h-[360px] sm:max-h-[480px] rounded-lg overflow-hidden shadow-lg"
+          </div>
+
+          <div className="flex items-center gap-2.5">
+            <button
+              onClick={handleCopy}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-zinc-300 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 transition cursor-pointer"
+              title="Copy Meeting Link"
             >
-              <video
-                autoPlay
-                playsInline
-                ref={(video) => {
-                  if (video && stream) video.srcObject = stream;
-                }}
-                className="w-full h-full object-cover bg-black"
-              />
-              {peers.length > 0 && peers.map(p => {
-                return <div key={userId}>
-                {(p.userId === userId) && <>
-                  {!p.micOn && (
-        <div className="absolute top-2 right-2 bg-black bg-opacity-50 p-2 rounded-full">
-          <MicOff className="text-red-500" />
-        </div>
-      )}
-                  {!p.cameraOn && <div className="absolute inset-0 flex items-center justify-center bg-blue-300 bg-opacity-70 rounded-lg">
-      <div className="flex flex-col items-center space-y-2 text-white">
-        <CameraOff size={40} />
-        <span>Camera Off</span>
-      </div>
-    </div>}
-                </> }
-                </div>
-              })}
-              <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-sm">
-                {userId}
-              </div>
-            </div>
-          ))}
-        </div>
+              {copied ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="text-emerald-400 font-semibold">Copied</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3.5 h-3.5 text-zinc-400" />
+                  <span>Copy Link</span>
+                </>
+              )}
+            </button>
 
-      
-          {showJoinPermission && (
-          <div className="absolute top-4 right-4 z-50 flex flex-col gap-3 min-h-[400px] max-h-screen">
-            {
-          ispending.map((request)=>(
-            
-            <div key={request.requesterId} className=" bg-gray-800 p-6 rounded-lg shadow-xl max-w-sm">
-            <p className="text-white text-lg font-semibold mb-4">
-              {request?.userDetails?.name ?? request?.requesterId} wants to join
-            </p>
-            <div className="flex justify-end gap-3">
-              <button
-                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg"
-                onClick={()=>handleInAcceptace(request?.requesterId,request?.roomId)}
-              >
-                Accept
-              </button>
-              <button
-                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg"
-                onClick={()=>handleInRejected(request?.requesterId,request?.roomId)}
-              >
-                Reject
-              </button>
+            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-zinc-400 bg-zinc-900/80 border border-zinc-800">
+              <Users className="w-3.5 h-3.5 text-zinc-500" />
+              <span>{totalStreams}</span>
             </div>
           </div>
-          ))}
+        </header>
+
+        {/* Dynamic Video Grid Area */}
+        <main className="flex-1 p-4 md:p-6 pb-24 overflow-y-auto flex items-center justify-center">
+          <div
+            className={`w-full h-full max-w-7xl mx-auto grid ${gridClass} gap-4 place-content-center place-items-center`}
+          >
+            {/* Local Video Stream */}
+            {streamRef.current && (
+              <div className="relative w-full h-full min-h-[200px] max-h-[520px] aspect-video rounded-2xl overflow-hidden bg-zinc-900 border border-zinc-800/80 shadow-2xl flex items-center justify-center group transition-all">
+                <VideoTile
+                  stream={streamRef.current}
+                  isLocal={true}
+                />
+
+                {/* Local Camera Off Fallback */}
+                {!toggleStream.cameraToggle && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-900 z-10">
+                    <div
+                      className={`w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-zinc-800 border-2 border-zinc-700/80 flex items-center justify-center text-white text-2xl font-bold shadow-xl transition-all ${
+                        toggleStream.micToggle
+                          ? "ring-4 ring-emerald-500/30 ring-offset-4 ring-offset-zinc-900 animate-pulse"
+                          : ""
+                      }`}
+                    >
+                      {localUserName ? localUserName.slice(0, 2).toUpperCase() : "You"}
+                    </div>
+                    <span className="text-zinc-400 text-xs mt-3 font-medium flex items-center gap-1.5">
+                      <CameraOff className="w-3.5 h-3.5 text-zinc-500" /> Camera off
+                    </span>
+                  </div>
+                )}
+
+                {/* Identity Badge */}
+                <div className="absolute bottom-3 left-3 bg-zinc-950/75 backdrop-blur-md px-3 py-1.5 rounded-lg border border-zinc-800/80 text-white text-xs font-medium flex items-center gap-2 z-20 shadow-md">
+                  <span>{localUserName} (You)</span>
+                  {toggleStream.micToggle ? (
+                    <span className="w-2 h-2 rounded-full bg-emerald-500" title="Microphone active" />
+                  ) : (
+                    <span title="Muted">
+                      <MicOff className="w-3.5 h-3.5 text-red-400" />
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Remote Participants' Video Streams */}
+            {Array.from(remoteStreams.entries()).map(([userId, stream]) => {
+              const peerInfo = peers.find((p) => p.userId === userId);
+              const isCamOn = peerInfo ? peerInfo.cameraOn : true;
+              const isMicOn = peerInfo ? peerInfo.micOn : true;
+              const displayName = peerInfo?.name || `User ${userId.slice(0, 6)}`;
+              const initials = displayName.slice(0, 2).toUpperCase();
+
+              return (
+                <div
+                  key={userId}
+                  className="relative w-full h-full min-h-[200px] max-h-[520px] aspect-video rounded-2xl overflow-hidden bg-zinc-900 border border-zinc-800/80 shadow-2xl flex items-center justify-center group transition-all"
+                >
+                  <VideoTile
+                    stream={stream}
+                    isLocal={false}
+                  />
+
+                  {/* Remote Camera Off Fallback */}
+                  {!isCamOn && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-900 z-10">
+                      <div
+                        className={`w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-zinc-800 border-2 border-zinc-700/80 flex items-center justify-center text-white text-2xl font-bold shadow-xl transition-all ${
+                          isMicOn
+                            ? "ring-4 ring-emerald-500/30 ring-offset-4 ring-offset-zinc-900 animate-pulse"
+                            : ""
+                        }`}
+                      >
+                        {initials}
+                      </div>
+                      <span className="text-zinc-400 text-xs mt-3 font-medium flex items-center gap-1.5">
+                        <CameraOff className="w-3.5 h-3.5 text-zinc-500" /> Camera off
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Identity Badge */}
+                  <div className="absolute bottom-3 left-3 bg-zinc-950/75 backdrop-blur-md px-3 py-1.5 rounded-lg border border-zinc-800/80 text-white text-xs font-medium flex items-center gap-2 z-20 shadow-md">
+                    <span>{displayName}</span>
+                    {isMicOn ? (
+                      <span className="w-2 h-2 rounded-full bg-emerald-500" title="Microphone active" />
+                    ) : (
+                      <span title="Muted">
+                        <MicOff className="w-3.5 h-3.5 text-red-400" />
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </main>
+
+        {/* Host Admission / Knocking Dialog */}
+        {showJoinPermission && ispending.length > 0 && (
+          <div className="absolute top-16 right-6 z-50 flex flex-col gap-3 max-w-sm w-full">
+            {ispending.map((request) => (
+              <div
+                key={request.requesterId}
+                className="bg-zinc-900/95 backdrop-blur-xl border border-zinc-800 p-4 rounded-xl shadow-2xl"
+              >
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-9 h-9 rounded-full bg-zinc-800 text-zinc-200 border border-zinc-700 flex items-center justify-center font-bold text-sm">
+                    {(request?.userDetails?.name || request.requesterId).charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-zinc-100 truncate">
+                      {request?.userDetails?.name ?? `User ${request.requesterId.slice(0, 6)}`}
+                    </p>
+                    <p className="text-xs text-zinc-400 truncate">Wants to join the call</p>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <button
+                    className="px-3.5 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-xs font-medium transition cursor-pointer"
+                    onClick={() => handleInRejected(request?.requesterId, request?.roomId)}
+                  >
+                    Deny
+                  </button>
+                  <button
+                    className="px-3.5 py-1.5 bg-white text-zinc-950 hover:bg-zinc-200 font-semibold rounded-lg text-xs transition cursor-pointer shadow-sm"
+                    onClick={() => handleInAcceptace(request?.requesterId, request?.roomId)}
+                  >
+                    Admit
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         )}
-        
 
-<div className="fixed flex gap-2 items-center justify-center bottom-4 left-1/2 transform -translate-x-1/2 p-3">
-  <button
-        onClick={handleCopy}
-        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow"
-      >
-        {copied ? 'Copied!' : 'Share Room Link'}
-      </button>
-     <button 
-  onClick={handleLeaveRoom}
-  className="z-50 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg"
->
-  <PhoneCall />
-</button>
-<button 
-  onClick={toggleMic}
-  className="z-50 bg-gray-300 hover:bg-gray-600 hover:text-black text-zinc-700 px-4 py-2 rounded-lg"
->
-  {toggleStream.micToggle ? <Mic />:<MicOff />}
-</button>
-<button 
-  onClick={toggleCamera}
-  className="z-50 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg"
->
-  {toggleStream.cameraToggle ? <Camera />: <CameraOff />}
-</button>
-</div>
+        {/* Modern Floating Control Dock Toolbar */}
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-zinc-900/90 backdrop-blur-xl border border-zinc-800/90 px-4 py-2 rounded-2xl shadow-2xl flex items-center gap-2 sm:gap-3">
+          {/* Mic Button */}
+          <button
+            onClick={toggleMic}
+            title={toggleStream.micToggle ? "Mute Microphone" : "Unmute Microphone"}
+            className={`p-3 rounded-xl transition-all duration-200 cursor-pointer ${
+              toggleStream.micToggle
+                ? "bg-zinc-800 hover:bg-zinc-700 text-zinc-100 border border-zinc-700/60"
+                : "bg-red-500/15 border border-red-500/40 text-red-400 hover:bg-red-500/25"
+            }`}
+          >
+            {toggleStream.micToggle ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5 text-red-400" />}
+          </button>
 
-<Chat socket={socket} roomId={roomId}  userid={mainUserId as string}/>
+          {/* Camera Button */}
+          <button
+            onClick={toggleCamera}
+            title={toggleStream.cameraToggle ? "Turn Off Camera" : "Turn On Camera"}
+            className={`p-3 rounded-xl transition-all duration-200 cursor-pointer ${
+              toggleStream.cameraToggle
+                ? "bg-zinc-800 hover:bg-zinc-700 text-zinc-100 border border-zinc-700/60"
+                : "bg-red-500/15 border border-red-500/40 text-red-400 hover:bg-red-500/25"
+            }`}
+          >
+            {toggleStream.cameraToggle ? <Camera className="w-5 h-5" /> : <CameraOff className="w-5 h-5 text-red-400" />}
+          </button>
+
+          {/* Chat Toggle Button */}
+          <button
+            onClick={() => {
+              setIsChatOpen(!isChatOpen);
+              if (!isChatOpen) setUnreadMessages(0);
+            }}
+            title={isChatOpen ? "Close Chat" : "Open Chat"}
+            className={`relative p-3 rounded-xl transition-all duration-200 cursor-pointer ${
+              isChatOpen
+                ? "bg-white text-zinc-950 font-semibold shadow-md"
+                : "bg-zinc-800 hover:bg-zinc-700 text-zinc-100 border border-zinc-700/60"
+            }`}
+          >
+            <MessageSquare className="w-5 h-5" />
+            {unreadMessages > 0 && !isChatOpen && (
+              <span className="absolute -top-1 -right-1 bg-emerald-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center border-2 border-zinc-900">
+                {unreadMessages}
+              </span>
+            )}
+          </button>
+
+          <div className="h-6 w-px bg-zinc-800 mx-1" />
+
+          {/* Leave Call Button */}
+          <button
+            onClick={handleLeaveRoom}
+            title="Leave Meeting"
+            className="px-4 sm:px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-medium text-sm transition-all duration-200 cursor-pointer flex items-center gap-2 shadow-lg shadow-red-600/20"
+          >
+            <PhoneOff className="w-4 h-4" />
+            <span className="hidden sm:inline">Leave</span>
+          </button>
+        </div>
       </div>
-    </>
+
+      {/* In-Call Chat Sidebar Drawer */}
+      <Chat
+        socket={socket}
+        roomId={roomId}
+        userid={mainUserId as string}
+        isOpen={isChatOpen}
+        onClose={handleCloseChat}
+        onMessageReceived={handleChatMessageReceived}
+      />
+    </div>
   );
 }
